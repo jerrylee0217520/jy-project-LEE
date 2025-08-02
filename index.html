@@ -154,6 +154,44 @@
                 </div>
 
                 <div class="form-section">
+                    <h2 class="text-xl font-semibold mb-4 text-[#E55934]">停車紀錄</h2>
+                    <div id="parking-records-container" class="space-y-4">
+                        <!-- Parking Record Entry -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4">
+                            <div>
+                                <label class="block mb-2 form-label">停放時間</label>
+                                <input type="time" class="form-input parking-input" data-field="parkingTime">
+                            </div>
+                            <div>
+                                <label class="block mb-2 form-label">離開時間</label>
+                                <input type="time" class="form-input parking-input" data-field="leaveTime">
+                            </div>
+                             <div>
+                                <label class="block mb-2 form-label">車牌號碼</label>
+                                <input type="text" class="form-input parking-input" data-field="carPlate">
+                            </div>
+                            <div>
+                                <label class="block mb-2 form-label">戶別</label>
+                                <input type="text" class="form-input parking-input" data-field="huBei">
+                            </div>
+                            <div>
+                                <label class="block mb-2 form-label">停車人</label>
+                                <input type="text" class="form-input parking-input" data-field="parker">
+                            </div>
+                             <div>
+                                <label class="block mb-2 form-label">停放地點</label>
+                                <input type="text" class="form-input parking-input" data-field="location">
+                            </div>
+                            <div>
+                                <label class="block mb-2 form-label">車位號</label>
+                                <input type="text" class="form-input parking-input" data-field="spot">
+                            </div>
+                        </div>
+                    </div>
+                    <button id="add-parking-record-btn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增停車紀錄</button>
+                </div>
+
+                <div class="form-section">
                     <h2 class="text-xl font-semibold mb-4 text-[#E55934]">每日清點</h2>
                     <div class="space-y-2">
                         <div class="flex items-center">
@@ -251,6 +289,31 @@
                 </div>
             </div>
         </section>
+        
+        <section id="parking-display" class="mb-16">
+            <div class="card max-w-5xl mx-auto">
+                 <h2 class="section-title">停車紀錄</h2>
+                 <p class="section-subtitle">以下為今日社區停車紀錄清單。</p>
+                 <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放時間</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">離開時間</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車牌號碼</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">戶別</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停車人</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放地點</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車位號</th>
+                                </tr>
+                            </thead>
+                            <tbody id="parking-table-body">
+                                <!-- Parking records will be dynamically added here -->
+                            </tbody>
+                        </table>
+                    </div>
+            </div>
+        </section>
 
         <section id="renovation-progress-display" class="mb-16">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
@@ -345,7 +408,7 @@
         </section>
 
         <footer class="text-center text-gray-400 text-sm mt-12 pb-4">
-            <p>此報告由 AI 資訊圖表系統自動生成</p>
+            <p>此報告由 佳元松江管理中心運營系統生成</p>
             <p>&copy; 佳元松江-管理中心 2025</p>
         </footer>
     </div>
@@ -405,18 +468,25 @@
 
         let renovationChart = null;
         let taskCount = 5;
+        let parkingRecordCount = 1;
 
         const authButton = document.getElementById('auth-button');
         const userStatus = document.getElementById('user-status');
         const inputForm = document.getElementById('input-form');
+        const addParkingRecordBtn = document.getElementById('add-parking-record-btn');
 
-        // 監聽使用者登入狀態
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 userStatus.innerText = `已登入：${user.displayName}`;
                 authButton.innerText = '登出';
-                inputForm.classList.remove('hidden');
-                // 這裡可以加入更多判斷，例如只允許特定 email 帳號編輯
+                // Check if user is authorized to edit (e.g., using a specific email)
+                // This is a basic check. For production, consider using Firestore rules with `request.auth.uid`.
+                if (user.email === 'jerrylee0217520@gmail.com') { // Replace with your actual email
+                    inputForm.classList.remove('hidden');
+                } else {
+                    userStatus.innerText = '您沒有編輯權限';
+                    inputForm.classList.add('hidden');
+                }
             } else {
                 userStatus.innerText = '訪客模式，請登入以編輯。';
                 authButton.innerText = '登入 Google';
@@ -424,7 +494,6 @@
             }
         });
 
-        // 登入/登出功能
         authButton.addEventListener('click', () => {
             if (auth.currentUser) {
                 signOut(auth);
@@ -434,7 +503,6 @@
             }
         });
 
-        // 從表單中獲取所有資料並組織成物件
         function getFormData() {
             const date = document.getElementById('date-selector').value;
             const totalRenovation = document.getElementById('totalRenovation').value;
@@ -456,16 +524,25 @@
             const taskElements = document.querySelectorAll('#tasks-container input');
             const tasks = Array.from(taskElements).map(el => el.value).filter(val => val.trim() !== '');
 
+            const parkingRecords = [];
+            document.querySelectorAll('#parking-records-container > div').forEach(div => {
+                const record = {};
+                div.querySelectorAll('.parking-input').forEach(input => {
+                    record[input.dataset.field] = input.value;
+                });
+                parkingRecords.push(record);
+            });
+
             return {
                 date,
                 community: { totalRenovation, newRenovation, renovationRetired, totalRenovationAccum, totalRenovationRetiredAccum, newMoveIn, totalHouseholds },
                 checklist: { check1, check2, check3 },
                 tasks,
-                staff: { managerName, todayShift, tomorrowShift, shiftNotes }
+                staff: { managerName, todayShift, tomorrowShift, shiftNotes },
+                parking: parkingRecords
             };
         }
 
-        // 將資料庫中的資料更新到儀表板
         function updateDashboard(data) {
             if (!data) {
                 console.warn('No data found for this date.');
@@ -482,6 +559,7 @@
                 document.getElementById('staff-tomorrow-cell').innerText = '-';
                 document.getElementById('staff-notes-cell').innerText = '-';
                 document.getElementById('tasks-table-body').innerHTML = '';
+                document.getElementById('parking-table-body').innerHTML = '';
                 if (renovationChart) {
                     renovationChart.data.datasets[0].data = [0, 0];
                     renovationChart.update();
@@ -515,12 +593,28 @@
 
             const tasksTableBody = document.getElementById('tasks-table-body');
             tasksTableBody.innerHTML = '';
-            data.tasks.forEach(task => {
+            (data.tasks || []).forEach(task => {
                 if (task) {
                     const newRow = document.createElement('tr');
                     newRow.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td>`;
                     tasksTableBody.appendChild(newRow);
                 }
+            });
+
+            const parkingTableBody = document.getElementById('parking-table-body');
+            parkingTableBody.innerHTML = '';
+            (data.parking || []).forEach(record => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${record.parkingTime || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${record.leaveTime || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${record.carPlate || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${record.huBei || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${record.parker || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${record.location || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${record.spot || '-'}</td>
+                `;
+                parkingTableBody.appendChild(newRow);
             });
 
             if (renovationChart) {
@@ -532,7 +626,6 @@
             }
         }
 
-        // 從 Firestore 讀取指定日期的日誌
         async function fetchLogByDate(date) {
             const docRef = doc(db, 'daily_logs', date);
             const docSnap = await getDoc(docRef);
@@ -540,15 +633,18 @@
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 updateDashboard(data);
-                updateInputForm(data);
+                if (auth.currentUser) {
+                    updateInputForm(data);
+                }
             } else {
                 console.log('No such document!');
                 updateDashboard(null);
-                clearInputForm();
+                if (auth.currentUser) {
+                    clearInputForm();
+                }
             }
         }
 
-        // 更新輸入表單
         function updateInputForm(data) {
             if (!data) return;
             document.getElementById('totalRenovation').value = data.community.totalRenovation;
@@ -568,7 +664,7 @@
 
             const tasksContainer = document.getElementById('tasks-container');
             tasksContainer.innerHTML = '';
-            data.tasks.forEach((task, index) => {
+            (data.tasks || []).forEach((task, index) => {
                 const newDiv = document.createElement('div');
                 newDiv.innerHTML = `
                     <label for="task${index}" class="block mb-2 form-label">事項 ${index + 1}</label>
@@ -577,10 +673,19 @@
                  newDiv.querySelector('input').addEventListener('input', updateDashboardFromForm);
                 tasksContainer.appendChild(newDiv);
             });
-            taskCount = data.tasks.length;
+            taskCount = (data.tasks || []).length;
+            
+            const parkingRecordsContainer = document.getElementById('parking-records-container');
+            parkingRecordsContainer.innerHTML = '';
+            (data.parking || []).forEach(record => {
+                 const newDiv = createParkingRecordForm(record);
+                 parkingRecordsContainer.appendChild(newDiv);
+            });
+            if ((data.parking || []).length === 0) {
+                 parkingRecordsContainer.appendChild(createParkingRecordForm({}));
+            }
         }
-
-        // 清空輸入表單
+        
         function clearInputForm() {
             document.getElementById('totalRenovation').value = '';
             document.getElementById('newRenovation').value = '';
@@ -598,15 +703,16 @@
             document.getElementById('shiftNotes').value = '';
             document.getElementById('tasks-container').innerHTML = '';
             taskCount = 0;
+            const parkingRecordsContainer = document.getElementById('parking-records-container');
+            parkingRecordsContainer.innerHTML = '';
+            parkingRecordsContainer.appendChild(createParkingRecordForm({}));
         }
         
-        // 根據表單資料更新儀表板
         function updateDashboardFromForm() {
             const data = getFormData();
             updateDashboard(data);
         }
 
-        // 儲存日誌到 Firestore
         async function saveLogToFirestore() {
              if (!auth.currentUser) {
                 alert('請先登入才能儲存日誌！');
@@ -620,6 +726,45 @@
             } catch (e) {
                 alert("儲存日誌時發生錯誤: ", e);
             }
+        }
+
+        function createParkingRecordForm(record = {}) {
+            const div = document.createElement('div');
+            div.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4";
+            div.innerHTML = `
+                <div>
+                    <label class="block mb-2 form-label">停放時間</label>
+                    <input type="time" class="form-input parking-input" data-field="parkingTime" value="${record.parkingTime || ''}">
+                </div>
+                <div>
+                    <label class="block mb-2 form-label">離開時間</label>
+                    <input type="time" class="form-input parking-input" data-field="leaveTime" value="${record.leaveTime || ''}">
+                </div>
+                 <div>
+                    <label class="block mb-2 form-label">車牌號碼</label>
+                    <input type="text" class="form-input parking-input" data-field="carPlate" value="${record.carPlate || ''}">
+                </div>
+                <div>
+                    <label class="block mb-2 form-label">戶別</label>
+                    <input type="text" class="form-input parking-input" data-field="huBei" value="${record.huBei || ''}">
+                </div>
+                <div>
+                    <label class="block mb-2 form-label">停車人</label>
+                    <input type="text" class="form-input parking-input" data-field="parker" value="${record.parker || ''}">
+                </div>
+                 <div>
+                    <label class="block mb-2 form-label">停放地點</label>
+                    <input type="text" class="form-input parking-input" data-field="location" value="${record.location || ''}">
+                </div>
+                <div>
+                    <label class="block mb-2 form-label">車位號</label>
+                    <input type="text" class="form-input parking-input" data-field="spot" value="${record.spot || ''}">
+                </div>
+            `;
+            div.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', updateDashboardFromForm);
+            });
+            return div;
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -636,6 +781,10 @@
             });
             
             document.getElementById('addTaskBtn').addEventListener('click', addTask);
+            document.getElementById('add-parking-record-btn').addEventListener('click', () => {
+                const container = document.getElementById('parking-records-container');
+                container.appendChild(createParkingRecordForm({}));
+            });
             document.getElementById('generate-csv-btn').addEventListener('click', generateCsv);
             document.getElementById('save-log-btn').addEventListener('click', saveLogToFirestore);
 
@@ -685,6 +834,7 @@
             const check2Status = data.checklist.check2 ? '✓' : '-';
             const check3Status = data.checklist.check3 ? '✓' : '-';
             const taskList = data.tasks;
+            const parkingList = data.parking;
 
             let csvContent = "";
             
@@ -731,6 +881,11 @@
                 csvContent += `${task},,,,,\n`;
             });
             csvContent += ",,,,,\n";
+
+            csvContent += `停放時間,離開時間,車牌號碼,戶別,停車人,停放地點,車位號\n`;
+            parkingList.forEach(record => {
+                 csvContent += `${record.parkingTime || ''},${record.leaveTime || ''},${record.carPlate || ''},${record.huBei || ''},${record.parker || ''},${record.location || ''},${record.spot || ''}\n`;
+            });
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
