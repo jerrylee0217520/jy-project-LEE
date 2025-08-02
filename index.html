@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>佳元松江社區每日營運儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #F7F7F7;
+            color: #3D3D3D;
+        }
+        .chart-container {
+            position: relative;
+            margin: auto;
+            height: 300px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .kpi-card {
+            background-color: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+        .kpi-value {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .kpi-label {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #6B7280;
+            margin-top: 0.5rem;
+        }
+        .section-title {
+            font-size: 1.875rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        .section-subtitle {
+            font-size: 1.125rem;
+            color: #4B5563;
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto 2.5rem auto;
+        }
+        .card {
+            background-color: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+        }
+        .form-label {
+            font-weight: 500;
+            color: #4B5563;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #D1D5DB;
+            border-radius: 0.5rem;
+        }
+        .btn-primary {
+            background-color: #00A6A6;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #008C8C;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #E5E7EB;
+        }
+        th {
+            background-color: #F3F4F6;
+            font-weight: 600;
+            color: #4B5563;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto p-4 sm:p-6 md:p-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-[#00A6A6] mb-2">佳元松江社區 每日營運儀表板</h1>
+            <div class="flex items-center justify-center mt-4">
+                <label for="date-selector" class="text-xl text-gray-500 mr-2">選擇日期：</label>
+                <input type="date" id="date-selector" class="form-input w-48">
+            </div>
+            <p class="text-xl text-gray-500">當前日期：<span id="displayDate">2025年08月02日</span></p>
+            <div class="mt-4 flex justify-center items-center space-x-4">
+                <button id="auth-button" class="bg-[#E55934] text-white px-4 py-2 rounded-md font-semibold hover:bg-[#C24E2E]">登入 Google</button>
+            </div>
+            <p id="user-status" class="mt-2 text-sm text-gray-600">訪客模式，請登入以編輯。</p>
+        </header>
+
+        <section id="input-form" class="mb-16 hidden">
+            <main class="card max-w-4xl mx-auto">
+                <div class="form-section">
+                    <h2 class="text-xl font-semibold mb-4 text-[#E55934]">社區動態輸入</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="totalRenovation" class="block mb-2 form-label">總裝潢施作戶數</label>
+                            <input type="number" id="totalRenovation" class="form-input" value="14">
+                        </div>
+                        <div>
+                            <label for="newRenovation" class="block mb-2 form-label">本日申請裝潢戶數</label>
+                            <input type="number" id="newRenovation" class="form-input" value="0">
+                        </div>
+                        <div>
+                            <label for="renovationRetired" class="block mb-2 form-label">本日裝潢驗退戶數</label>
+                            <input type="number" id="renovationRetired" class="form-input" value="0">
+                        </div>
+                        <div>
+                            <label for="totalRenovationAccum" class="block mb-2 form-label">裝潢總計（累計）</label>
+                            <input type="number" id="totalRenovationAccum" class="form-input" value="20">
+                        </div>
+                        <div>
+                            <label for="totalRenovationRetiredAccum" class="block mb-2 form-label">已驗退戶（累計）</label>
+                            <input type="number" id="totalRenovationRetiredAccum" class="form-input" value="6">
+                        </div>
+                        <div>
+                            <label for="newMoveIn" class="block mb-2 form-label">本日交屋戶數</label>
+                            <input type="text" id="newMoveIn" class="form-input" value="0">
+                        </div>
+                        <div>
+                            <label for="totalHouseholds" class="block mb-2 form-label">總戶數</label>
+                            <input type="number" id="totalHouseholds" class="form-input" value="40">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2 class="text-xl font-semibold mb-4 text-[#E55934]">每日清點</h2>
+                    <div class="space-y-2">
+                        <div class="flex items-center">
+                            <input type="checkbox" id="check1" checked class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded">
+                            <label for="check1" class="ml-2 block text-sm text-gray-900">公共區域門窗安全檢查</label>
+                        </div>
+                         <div class="flex items-center">
+                            <input type="checkbox" id="check2" class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded">
+                            <label for="check2" class="ml-2 block text-sm text-gray-900">無郵件及包裹點交</label>
+                        </div>
+                         <div class="flex items-center">
+                            <input type="checkbox" id="check3" checked class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded">
+                            <label for="check3" class="ml-2 block text-sm text-gray-900">施工圍籬與施工車輛停放位置確認</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2 class="text-xl font-semibold mb-4 text-[#E55934]">今日工作事項</h2>
+                    <div id="tasks-container" class="space-y-4">
+                        <div>
+                            <label for="task0" class="block mb-2 form-label">事項 1</label>
+                            <input type="text" id="task0" class="form-input" value="經理巡檢社區公共設施">
+                        </div>
+                        <div>
+                            <label for="task1" class="block mb-2 form-label">事項 2</label>
+                            <input type="text" id="task1" class="form-input" value="檢查一樓外圍臨時停車位使用狀況">
+                        </div>
+                        <div>
+                            <label for="task2" class="block mb-2 form-label">事項 3</label>
+                            <input type="text" id="task2" class="form-input" value="巡視裝潢施作戶別，確認施工安全">
+                        </div>
+                        <div>
+                            <label for="task3" class="block mb-2 form-label">事項 4</label>
+                            <input type="text" id="task3" class="form-input" value="協助住戶處理包裹點交作業">
+                        </div>
+                         <div>
+                            <label for="task4" class="block mb-2 form-label">事項 5</label>
+                            <input type="text" id="task4" class="form-input" value="門禁安檢與社區周邊巡邏">
+                        </div>
+                    </div>
+                    <button id="addTaskBtn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增工作事項</button>
+                </div>
+                
+                 <div class="form-section">
+                    <h2 class="text-xl font-semibold mb-4 text-[#E55934]">人員編制</h2>
+                    <div class="space-y-2">
+                        <div>
+                            <label for="managerName" class="block mb-2 form-label">經理姓名</label>
+                            <input type="text" id="managerName" class="form-input" value="李俊煌">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="todayShift" class="block mb-2 form-label">今日出勤</label>
+                                <input type="text" id="todayShift" class="form-input" value="早班 08:00–17:00">
+                            </div>
+                            <div>
+                                <label for="tomorrowShift" class="block mb-2 form-label">明日出勤</label>
+                                <input type="text" id="tomorrowShift" class="form-input" value="休假">
+                            </div>
+                        </div>
+                         <div>
+                            <label for="shiftNotes" class="block mb-2 form-label">備註</label>
+                            <textarea id="shiftNotes" class="form-input" rows="2">兼任保全巡場、門禁與安檢工作</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center space-x-4">
+                    <button id="save-log-btn" class="btn-primary">儲存日誌到資料庫</button>
+                    <button id="generate-csv-btn" class="btn-primary">產生 CSV 檔案</button>
+                </div>
+            </main>
+        </section>
+
+        <section id="dashboard-display" class="mb-16">
+             <h2 class="section-title">社區核心數據</h2>
+            <p class="section-subtitle">即時掌握社區的關鍵數據，包含總戶數與裝潢進度概覽。</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+                <div class="kpi-card">
+                    <div id="kpi-total-households" class="kpi-value text-[#00A6A6]">40</div>
+                    <div class="kpi-label">總戶數</div>
+                </div>
+                <div class="kpi-card">
+                    <div id="kpi-total-renovation" class="kpi-value text-[#E55934]">14</div>
+                    <div class="kpi-label">總裝潢施作戶數</div>
+                </div>
+                <div class="kpi-card">
+                    <div id="kpi-total-renovation-accum" class="kpi-value text-[#FAD46B]">20</div>
+                    <div class="kpi-label">裝潢總計(累計)</div>
+                </div>
+                 <div class="kpi-card">
+                    <div id="kpi-renovation-retired-accum" class="kpi-value text-[#00A6A6]">6</div>
+                    <div class="kpi-label">已驗退戶(累計)</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="renovation-progress-display" class="mb-16">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div class="card md:col-span-1">
+                    <h2 class="section-title">本日裝潢動態</h2>
+                    <p class="text-gray-600 text-center mb-4">此圓環圖顯示了已申請裝潢的20戶中，正在施工中與已完工驗退的比例。這有助於社區管理中心追蹤裝潢進度。</p>
+                    <div class="chart-container">
+                        <canvas id="renovationChart"></canvas>
+                    </div>
+                </div>
+                <div class="card md:col-span-1">
+                    <h2 class="section-title">本日人員編制</h2>
+                    <p class="text-gray-600 text-center mb-4">今日值勤人員的詳細資訊與明日班表。</p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">職位</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">人員姓名</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">今日出勤</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">明日出勤</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">備註</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staffing-table-body">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">經理</td>
+                                    <td id="staff-name-cell" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">李俊煌</td>
+                                    <td id="staff-today-cell" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">早班 08:00–17:00</td>
+                                    <td id="staff-tomorrow-cell" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">休假</td>
+                                    <td id="staff-notes-cell" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">兼任保全巡場、門禁與安檢工作</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="daily-checklist-display" class="mb-16">
+            <div class="card max-w-5xl mx-auto">
+                 <h2 class="section-title">每日清點</h2>
+                 <p class="section-subtitle">以下為今日工作日誌中的清點項目與其完成狀態。</p>
+                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="kpi-card text-center">
+                        <div id="check1-display" class="kpi-value text-[#00A6A6]">✓</div>
+                        <div class="kpi-label">公共區域門窗安全檢查</div>
+                    </div>
+                     <div class="kpi-card text-center">
+                        <div id="check2-display" class="kpi-value text-[#E55934]">X</div>
+                        <div class="kpi-label">無郵件及包裹點交</div>
+                    </div>
+                    <div class="kpi-card text-center">
+                        <div id="check3-display" class="kpi-value text-[#00A6A6]">✓</div>
+                        <div class="kpi-label">施工圍籬與施工車輛停放位置確認</div>
+                    </div>
+                 </div>
+            </div>
+        </section>
+        
+        <section id="daily-tasks-display" class="mb-16">
+            <div class="card max-w-5xl mx-auto">
+                 <h2 class="section-title">今日工作事項</h2>
+                 <p class="section-subtitle">以下為今日工作日誌的詳細事項清單。</p>
+                 <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">事項</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tasks-table-body">
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">經理巡檢社區公共設施</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">檢查一樓外圍臨時停車位使用狀況</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">巡視裝潢施作戶別，確認施工安全</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">協助住戶處理包裹點交作業</td>
+                                </tr>
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">門禁安檢與社區周邊巡邏</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+            </div>
+        </section>
+
+        <footer class="text-center text-gray-400 text-sm mt-12 pb-4">
+            <p>此報告由 AI 資訊圖表系統自動生成</p>
+            <p>&copy; 佳元松江-管理中心 2025</p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDeRHsloR1iY0_bzpYbPzdCiBljGfck98k",
+            authDomain: "jy-2025.firebaseapp.com",
+            projectId: "jy-2025",
+            storageBucket: "jy-2025.firebasestorage.app",
+            messagingSenderId: "640527461851",
+            appId: "1:640527461851:web:eed9f82d698275371fcbfe",
+            measurementId: "G-HVEVMTSR9L"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        const vibrantPalette = {
+            primary: '#00A6A6',
+            secondary: '#E55934',
+            tertiary: '#FAD46B',
+            dark: '#3D3D3D',
+            light: '#F7F7F7',
+            gray: '#6B7280'
+        };
+
+        const tooltipCallback = {
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            const item = tooltipItems[0];
+                            let label = item.chart.data.labels[item.dataIndex];
+                            if (Array.isArray(label)) {
+                                return label.join(' ');
+                            }
+                            return label;
+                        }
+                    }
+                },
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        font: {
+                            size: 14
+                        }
+                    }
+                }
+            }
+        };
+
+        let renovationChart = null;
+        let taskCount = 5;
+
+        const authButton = document.getElementById('auth-button');
+        const userStatus = document.getElementById('user-status');
+        const inputForm = document.getElementById('input-form');
+
+        // 監聽使用者登入狀態
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userStatus.innerText = `已登入：${user.displayName}`;
+                authButton.innerText = '登出';
+                inputForm.classList.remove('hidden');
+                // 這裡可以加入更多判斷，例如只允許特定 email 帳號編輯
+            } else {
+                userStatus.innerText = '訪客模式，請登入以編輯。';
+                authButton.innerText = '登入 Google';
+                inputForm.classList.add('hidden');
+            }
+        });
+
+        // 登入/登出功能
+        authButton.addEventListener('click', () => {
+            if (auth.currentUser) {
+                signOut(auth);
+            } else {
+                const provider = new GoogleAuthProvider();
+                signInWithPopup(auth, provider);
+            }
+        });
+
+        // 從表單中獲取所有資料並組織成物件
+        function getFormData() {
+            const date = document.getElementById('date-selector').value;
+            const totalRenovation = document.getElementById('totalRenovation').value;
+            const newRenovation = document.getElementById('newRenovation').value;
+            const renovationRetired = document.getElementById('renovationRetired').value;
+            const totalRenovationAccum = document.getElementById('totalRenovationAccum').value;
+            const totalRenovationRetiredAccum = document.getElementById('totalRenovationRetiredAccum').value;
+            const newMoveIn = document.getElementById('newMoveIn').value;
+            const totalHouseholds = document.getElementById('totalHouseholds').value;
+            const managerName = document.getElementById('managerName').value;
+            const todayShift = document.getElementById('todayShift').value;
+            const tomorrowShift = document.getElementById('tomorrowShift').value;
+            const shiftNotes = document.getElementById('shiftNotes').value;
+
+            const check1 = document.getElementById('check1').checked;
+            const check2 = document.getElementById('check2').checked;
+            const check3 = document.getElementById('check3').checked;
+
+            const taskElements = document.querySelectorAll('#tasks-container input');
+            const tasks = Array.from(taskElements).map(el => el.value).filter(val => val.trim() !== '');
+
+            return {
+                date,
+                community: { totalRenovation, newRenovation, renovationRetired, totalRenovationAccum, totalRenovationRetiredAccum, newMoveIn, totalHouseholds },
+                checklist: { check1, check2, check3 },
+                tasks,
+                staff: { managerName, todayShift, tomorrowShift, shiftNotes }
+            };
+        }
+
+        // 將資料庫中的資料更新到儀表板
+        function updateDashboard(data) {
+            if (!data) {
+                console.warn('No data found for this date.');
+                document.getElementById('displayDate').innerText = '無資料';
+                document.getElementById('kpi-total-households').innerText = '-';
+                document.getElementById('kpi-total-renovation').innerText = '-';
+                document.getElementById('kpi-total-renovation-accum').innerText = '-';
+                document.getElementById('kpi-renovation-retired-accum').innerText = '-';
+                document.getElementById('check1-display').innerText = 'X';
+                document.getElementById('check2-display').innerText = 'X';
+                document.getElementById('check3-display').innerText = 'X';
+                document.getElementById('staff-name-cell').innerText = '-';
+                document.getElementById('staff-today-cell').innerText = '-';
+                document.getElementById('staff-tomorrow-cell').innerText = '-';
+                document.getElementById('staff-notes-cell').innerText = '-';
+                document.getElementById('tasks-table-body').innerHTML = '';
+                if (renovationChart) {
+                    renovationChart.data.datasets[0].data = [0, 0];
+                    renovationChart.update();
+                }
+                return;
+            }
+
+            document.getElementById('displayDate').innerText = data.date.replace(/-/g, '年') + '日';
+            document.getElementById('kpi-total-households').innerText = data.community.totalHouseholds;
+            document.getElementById('kpi-total-renovation').innerText = data.community.totalRenovation;
+            document.getElementById('kpi-total-renovation-accum').innerText = data.community.totalRenovationAccum;
+            document.getElementById('kpi-renovation-retired-accum').innerText = data.community.totalRenovationRetiredAccum;
+
+            const check1Status = data.checklist.check1 ? '✓' : 'X';
+            const check2Status = data.checklist.check2 ? '✓' : 'X';
+            const check3Status = data.checklist.check3 ? '✓' : 'X';
+            document.getElementById('check1-display').innerText = check1Status;
+            document.getElementById('check2-display').innerText = check2Status;
+            document.getElementById('check3-display').innerText = check3Status;
+            document.getElementById('check1-display').classList.toggle('text-[#E55934]', check1Status === 'X');
+            document.getElementById('check1-display').classList.toggle('text-[#00A6A6]', check1Status === '✓');
+            document.getElementById('check2-display').classList.toggle('text-[#E55934]', check2Status === 'X');
+            document.getElementById('check2-display').classList.toggle('text-[#00A6A6]', check2Status === '✓');
+            document.getElementById('check3-display').classList.toggle('text-[#E55934]', check3Status === 'X');
+            document.getElementById('check3-display').classList.toggle('text-[#00A6A6]', check3Status === '✓');
+
+            document.getElementById('staff-name-cell').innerText = data.staff.managerName;
+            document.getElementById('staff-today-cell').innerText = data.staff.todayShift;
+            document.getElementById('staff-tomorrow-cell').innerText = data.staff.tomorrowShift;
+            document.getElementById('staff-notes-cell').innerText = data.staff.shiftNotes;
+
+            const tasksTableBody = document.getElementById('tasks-table-body');
+            tasksTableBody.innerHTML = '';
+            data.tasks.forEach(task => {
+                if (task) {
+                    const newRow = document.createElement('tr');
+                    newRow.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td>`;
+                    tasksTableBody.appendChild(newRow);
+                }
+            });
+
+            if (renovationChart) {
+                renovationChart.data.datasets[0].data = [
+                    data.community.totalRenovationAccum - data.community.totalRenovationRetiredAccum, 
+                    data.community.totalRenovationRetiredAccum
+                ];
+                renovationChart.update();
+            }
+        }
+
+        // 從 Firestore 讀取指定日期的日誌
+        async function fetchLogByDate(date) {
+            const docRef = doc(db, 'daily_logs', date);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                updateDashboard(data);
+                updateInputForm(data);
+            } else {
+                console.log('No such document!');
+                updateDashboard(null);
+                clearInputForm();
+            }
+        }
+
+        // 更新輸入表單
+        function updateInputForm(data) {
+            if (!data) return;
+            document.getElementById('totalRenovation').value = data.community.totalRenovation;
+            document.getElementById('newRenovation').value = data.community.newRenovation;
+            document.getElementById('renovationRetired').value = data.community.renovationRetired;
+            document.getElementById('totalRenovationAccum').value = data.community.totalRenovationAccum;
+            document.getElementById('totalRenovationRetiredAccum').value = data.community.totalRenovationRetiredAccum;
+            document.getElementById('newMoveIn').value = data.community.newMoveIn;
+            document.getElementById('totalHouseholds').value = data.community.totalHouseholds;
+            document.getElementById('check1').checked = data.checklist.check1;
+            document.getElementById('check2').checked = data.checklist.check2;
+            document.getElementById('check3').checked = data.checklist.check3;
+            document.getElementById('managerName').value = data.staff.managerName;
+            document.getElementById('todayShift').value = data.staff.todayShift;
+            document.getElementById('tomorrowShift').value = data.staff.tomorrowShift;
+            document.getElementById('shiftNotes').value = data.staff.shiftNotes;
+
+            const tasksContainer = document.getElementById('tasks-container');
+            tasksContainer.innerHTML = '';
+            data.tasks.forEach((task, index) => {
+                const newDiv = document.createElement('div');
+                newDiv.innerHTML = `
+                    <label for="task${index}" class="block mb-2 form-label">事項 ${index + 1}</label>
+                    <input type="text" id="task${index}" class="form-input" value="${task}">
+                `;
+                 newDiv.querySelector('input').addEventListener('input', updateDashboardFromForm);
+                tasksContainer.appendChild(newDiv);
+            });
+            taskCount = data.tasks.length;
+        }
+
+        // 清空輸入表單
+        function clearInputForm() {
+            document.getElementById('totalRenovation').value = '';
+            document.getElementById('newRenovation').value = '';
+            document.getElementById('renovationRetired').value = '';
+            document.getElementById('totalRenovationAccum').value = '';
+            document.getElementById('totalRenovationRetiredAccum').value = '';
+            document.getElementById('newMoveIn').value = '';
+            document.getElementById('totalHouseholds').value = '';
+            document.getElementById('check1').checked = false;
+            document.getElementById('check2').checked = false;
+            document.getElementById('check3').checked = false;
+            document.getElementById('managerName').value = '';
+            document.getElementById('todayShift').value = '';
+            document.getElementById('tomorrowShift').value = '';
+            document.getElementById('shiftNotes').value = '';
+            document.getElementById('tasks-container').innerHTML = '';
+            taskCount = 0;
+        }
+        
+        // 根據表單資料更新儀表板
+        function updateDashboardFromForm() {
+            const data = getFormData();
+            updateDashboard(data);
+        }
+
+        // 儲存日誌到 Firestore
+        async function saveLogToFirestore() {
+             if (!auth.currentUser) {
+                alert('請先登入才能儲存日誌！');
+                return;
+            }
+            const data = getFormData();
+            const logDate = data.date;
+            try {
+                await setDoc(doc(db, "daily_logs", logDate), data);
+                alert(`日期為 ${logDate} 的日誌已成功儲存！`);
+            } catch (e) {
+                alert("儲存日誌時發生錯誤: ", e);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date-selector').value = today;
+            document.getElementById('date-selector').addEventListener('change', (event) => {
+                const selectedDate = event.target.value;
+                fetchLogByDate(selectedDate);
+            });
+            
+            const inputs = document.querySelectorAll('#input-form input, #input-form textarea');
+            inputs.forEach(input => {
+                input.addEventListener('input', updateDashboardFromForm);
+            });
+            
+            document.getElementById('addTaskBtn').addEventListener('click', addTask);
+            document.getElementById('generate-csv-btn').addEventListener('click', generateCsv);
+            document.getElementById('save-log-btn').addEventListener('click', saveLogToFirestore);
+
+            const renovationCtx = document.getElementById('renovationChart').getContext('2d');
+            renovationChart = new Chart(renovationCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['施工中', '已驗退'],
+                    datasets: [{
+                        label: '戶數',
+                        data: [14, 6],
+                        backgroundColor: [vibrantPalette.primary, vibrantPalette.secondary],
+                        borderColor: vibrantPalette.light,
+                        borderWidth: 4,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: tooltipCallback.plugins
+                }
+            });
+
+            fetchLogByDate(today);
+        });
+
+        function addTask() {
+            const container = document.getElementById('tasks-container');
+            const newIndex = taskCount++;
+            const newDiv = document.createElement('div');
+            newDiv.innerHTML = `
+                <label for="task${newIndex}" class="block mb-2 form-label">事項 ${newIndex + 1}</label>
+                <input type="text" id="task${newIndex}" class="form-input">
+            `;
+            const newDivInput = newDiv.querySelector('input');
+            newDivInput.addEventListener('input', updateDashboardFromForm);
+            container.appendChild(newDiv);
+        }
+
+        function generateCsv() {
+            const data = getFormData();
+            const logDate = data.date.replace(/-/g, '/').split('/').map(v => parseInt(v)).join('/');
+            
+            const check1Status = data.checklist.check1 ? '✓' : '-';
+            const check2Status = data.checklist.check2 ? '✓' : '-';
+            const check3Status = data.checklist.check3 ? '✓' : '-';
+            const taskList = data.tasks;
+
+            let csvContent = "";
+            
+            csvContent += `佳元松江社區｜工作日誌｜${logDate},,,,,\n`;
+            csvContent += ",,,,,\n";
+
+            csvContent += "一、社區動態,,,,\n";
+            csvContent += "社區動態,數量（戶）,,,,\n";
+            csvContent += `總裝潢施作,${data.community.totalRenovation},,,,,\n`;
+            csvContent += `本日申請裝潢,${data.community.newRenovation},,,,,\n`;
+            csvContent += `本日裝潢驗退,${data.community.renovationRetired},,,,,\n`;
+            csvContent += `裝潢總計（累計）,${data.community.totalRenovationAccum},,,,,\n`;
+            csvContent += `已驗退戶（累計）,${data.community.totalRenovationRetiredAccum},,,,,\n`;
+            csvContent += ",,,,,\n";
+
+            csvContent += "二、社區基本數據,,,,\n";
+            csvContent += "項目,數值,,,,\n";
+            csvContent += `地址,松江路252巷10號,,,,\n`;
+            csvContent += `總戶數,${data.community.totalHouseholds},,,,,\n`;
+            csvContent += `本日交屋戶數,${data.community.newMoveIn},,,,,\n`;
+            csvContent += `入住率,—,,,,\n`;
+            csvContent += `空置戶數,—,,,,\n`;
+            csvContent += ",,,,,\n";
+            
+            csvContent += "三、人員編制,,,,\n";
+            csvContent += `職位,人員姓名,今日出勤,明日出勤,備註\n`;
+            csvContent += `經理,${data.staff.managerName},${data.staff.todayShift},${data.staff.tomorrowShift},${data.staff.shiftNotes}\n`;
+            csvContent += ",,,,,\n";
+
+            csvContent += "四、班表說明,,,,\n";
+            csvContent += `早班：08:00–17:00，負責社區巡場、施工管理、住戶聯繫及兼任保全巡場、門禁與安檢工作。,,,,\n`;
+            csvContent += ",,,,,\n";
+
+            csvContent += "五、每日清點,,,,\n";
+            csvContent += `每日清點,完成,,,,\n`;
+            csvContent += `公共區域門窗安全檢查,${check1Status},,,,\n`;
+            csvContent += `無郵件及包裹點交,${check2Status},,,,\n`;
+            csvContent += `施工圍籬與施工車輛停放位置確認,${check3Status},,,,\n`;
+            csvContent += ",,,,,\n";
+            
+            csvContent += "六、今日工作事項,,,,\n";
+            csvContent += "今日工作事項,,,,\n";
+            taskList.forEach(task => {
+                csvContent += `${task},,,,,\n`;
+            });
+            csvContent += ",,,,,\n";
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `佳元松江社區｜工作日誌｜${logDate.replace(/\//g, '')}日報.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
