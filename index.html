@@ -408,7 +408,7 @@
         </section>
 
         <footer class="text-center text-gray-400 text-sm mt-12 pb-4">
-            <p>此報告由 AI 資訊圖表系統自動生成</p>
+            <p>此報告由 神奇杰瑞AI資訊圖表系統自動生成</p>
             <p>&copy; 佳元松江-管理中心 2025</p>
         </footer>
     </div>
@@ -530,7 +530,9 @@
                 div.querySelectorAll('.parking-input').forEach(input => {
                     record[input.dataset.field] = input.value;
                 });
-                parkingRecords.push(record);
+                if (Object.values(record).some(v => v)) {
+                    parkingRecords.push(record);
+                }
             });
 
             return {
@@ -544,9 +546,13 @@
         }
 
         function updateDashboard(data) {
+            const selectedDate = document.getElementById('date-selector').value;
+            const dateObj = new Date(selectedDate);
+            const formattedDate = dateObj.getFullYear() + '年' + (dateObj.getMonth() + 1).toString().padStart(2, '0') + '月' + dateObj.getDate().toString().padStart(2, '0') + '日';
+            document.getElementById('displayDate').innerText = formattedDate;
+
             if (!data) {
                 console.warn('No data found for this date.');
-                document.getElementById('displayDate').innerText = '無資料';
                 document.getElementById('kpi-total-households').innerText = '-';
                 document.getElementById('kpi-total-renovation').innerText = '-';
                 document.getElementById('kpi-total-renovation-accum').innerText = '-';
@@ -567,7 +573,6 @@
                 return;
             }
 
-            document.getElementById('displayDate').innerText = data.date.replace(/-/g, '年') + '日';
             document.getElementById('kpi-total-households').innerText = data.community.totalHouseholds;
             document.getElementById('kpi-total-renovation').innerText = data.community.totalRenovation;
             document.getElementById('kpi-total-renovation-accum').innerText = data.community.totalRenovationAccum;
@@ -768,10 +773,15 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            const dateSelector = document.getElementById('date-selector');
             const today = new Date().toISOString().split('T')[0];
-            document.getElementById('date-selector').value = today;
-            document.getElementById('date-selector').addEventListener('change', (event) => {
+            dateSelector.value = today;
+            
+            dateSelector.addEventListener('change', (event) => {
                 const selectedDate = event.target.value;
+                const dateObj = new Date(selectedDate);
+                const formattedDate = dateObj.getFullYear() + '年' + (dateObj.getMonth() + 1).toString().padStart(2, '0') + '月' + dateObj.getDate().toString().padStart(2, '0') + '日';
+                document.getElementById('displayDate').innerText = formattedDate;
                 fetchLogByDate(selectedDate);
             });
             
@@ -810,7 +820,12 @@
                 }
             });
 
-            fetchLogByDate(today);
+            // 修正了這裡的邏輯，確保頁面載入時能正確顯示當天日期
+            const initialDate = dateSelector.value;
+            const dateObj = new Date(initialDate);
+            const formattedDate = dateObj.getFullYear() + '年' + (dateObj.getMonth() + 1).toString().padStart(2, '0') + '月' + dateObj.getDate().toString().padStart(2, '0') + '日';
+            document.getElementById('displayDate').innerText = formattedDate;
+            fetchLogByDate(initialDate);
         });
 
         function addTask() {
