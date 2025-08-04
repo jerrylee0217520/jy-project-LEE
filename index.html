@@ -114,7 +114,6 @@
 
         // --- 應用程式核心物件 (全新重構) ---
         const App = {
-            // --- 屬性 ---
             db: null,
             auth: null,
             user: null,
@@ -122,7 +121,6 @@
             taskCount: 0,
             elements: {},
 
-            // --- 1. 初始化 ---
             init() {
                 const firebaseApp = initializeApp(firebaseConfig);
                 this.auth = getAuth(firebaseApp);
@@ -135,7 +133,6 @@
                 this.listenForAuthStateChanges();
             },
 
-            // --- 2. 啟動流程 ---
             cacheDOMElements() {
                 this.elements = {
                     toast: document.getElementById('toast'),
@@ -188,7 +185,6 @@
                 });
             },
 
-            // --- 3. 狀態變更處理 ---
             handleAuthStateChange(user) {
                 this.updateAuthUI(user);
                 if (user) {
@@ -202,7 +198,6 @@
                 }
             },
 
-            // --- 4. 功能方法 (UI, 資料等) ---
             showToast(message, type = 'success') {
                 this.elements.toast.textContent = message;
                 this.elements.toast.className = `toast-${type}`;
