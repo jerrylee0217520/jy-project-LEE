@@ -406,6 +406,7 @@
         const saveLogBtn = document.getElementById('save-log-btn');
         const loader = document.getElementById('loader');
         const toast = document.getElementById('toast');
+        const dateSelector = document.getElementById('date-selector');
 
         const showLoader = () => loader.classList.remove('hidden');
         const hideLoader = () => loader.classList.add('hidden');
@@ -420,7 +421,6 @@
         }
 
         onAuthStateChanged(auth, (user) => {
-            // 修正: 只有在使用者登入後才讀取資料
             if (user && user.email) {
                 authButton.innerText = '登出';
                 if (user.email.toLowerCase() === ADMIN_EMAIL) {
@@ -430,15 +430,13 @@
                     userStatus.innerText = `訪客模式：${user.displayName} (無編輯權限)`;
                     inputForm.classList.add('hidden');
                 }
-                // 只有在確認使用者已登入後，才執行讀取資料的動作
-                fetchLogByDate(document.getElementById('date-selector').value);
+                fetchLogByDate(dateSelector.value);
             } else {
-                // 若使用者未登入，則顯示對應狀態並清空儀表板
                 userStatus.innerText = '訪客模式，請登入以讀取資料。';
                 authButton.innerText = '登入 Google';
                 inputForm.classList.add('hidden');
-                // 清空儀表板，避免顯示舊資料或觸發權限錯誤
                 updateDashboard(null);
+                hideLoader(); // 確保未登入時隱藏載入動畫
             }
         });
 
@@ -478,9 +476,9 @@
                 showToast(`日期為 ${logDate} 的日誌已成功儲存！`, 'success');
             } catch (e) {
                 console.error("儲存日誌時發生錯誤: ", e);
-                if (e.code === 'permission-denied' || e.message.includes('permission-denied') || e.message.includes('insufficient permissions')) {
+                if (e.code === 'permission-denied') {
                     showToast("儲存權限不足", "error");
-                    userStatus.innerHTML = `<span class="text-red-600 font-bold">錯誤：權限不足，無法寫入資料庫。<br>請系統管理員設定 Firebase 安全規則以允許寫入。</span>`;
+                    userStatus.innerHTML = `<span class="text-red-600 font-bold">錯誤：權限不足，無法寫入資料庫。<br>請檢查 Firebase 安全規則。</span>`;
                 } else {
                     showToast(`儲存失敗: ${e.message}`, 'error');
                 }
@@ -491,6 +489,11 @@
         }
 
         async function fetchLogByDate(date) {
+            // 增加保護，如果未登入或日期為空，則不執行
+            if (!auth.currentUser || !date) {
+                updateDashboard(null);
+                return;
+            }
             showLoader();
             try {
                 const docRef = doc(db, 'daily_logs', date);
@@ -499,22 +502,22 @@
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     updateDashboard(data);
-                    if (auth.currentUser && auth.currentUser.email.toLowerCase() === ADMIN_EMAIL) {
+                    if (auth.currentUser.email.toLowerCase() === ADMIN_EMAIL) {
                         updateInputForm(data);
                     }
                 } else {
                     console.log('當日無資料，將載入預設值。');
                     const defaultData = getFormData();
                     updateDashboard(defaultData);
-                    if (auth.currentUser && auth.currentUser.email.toLowerCase() === ADMIN_EMAIL) {
+                    if (auth.currentUser.email.toLowerCase() === ADMIN_EMAIL) {
                         clearInputForm();
                     }
                 }
             } catch (error) {
                 console.error("讀取資料時發生錯誤:", error);
-                if (error.code === 'permission-denied' || error.message.includes('permission-denied') || error.message.includes('insufficient permissions')) {
+                if (error.code === 'permission-denied') {
                     showToast("讀取權限不足", "error");
-                    userStatus.innerHTML = `<span class="text-red-600 font-bold">錯誤：權限不足，無法讀取資料庫。<br>請系統管理員設定 Firebase 安全規則以允許讀取。</span>`;
+                    userStatus.innerHTML = `<span class="text-red-600 font-bold">錯誤：權限不足，無法讀取資料庫。<br>請檢查 Firebase 安全規則。</span>`;
                 } else {
                     showToast("讀取資料失敗！", "error");
                 }
@@ -568,10 +571,9 @@
 
         function updateDashboard(data) {
             const selectedDate = document.getElementById('date-selector').value;
-            const dateObj = new Date(selectedDate + 'T00:00:00');
-            document.getElementById('displayDate').innerText = dateObj.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
-
-            if (!data) {
+            if (!selectedDate && !data) {
+                document.getElementById('displayDate').innerText = '請先登入';
+                // 清空所有儀表板數據
                 document.getElementById('kpi-total-households').innerText = '-';
                 document.getElementById('kpi-total-renovation').innerText = '-';
                 document.getElementById('kpi-total-renovation-accum').innerText = '-';
@@ -586,6 +588,11 @@
                 }
                 return;
             }
+            
+            const dateObj = new Date(selectedDate + 'T00:00:00');
+            document.getElementById('displayDate').innerText = dateObj.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+
+            if (!data) return;
 
             document.getElementById('kpi-total-households').innerText = data.community.totalHouseholds || '-';
             document.getElementById('kpi-total-renovation').innerText = data.community.totalRenovation || '-';
@@ -800,13 +807,11 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const dateSelector = document.getElementById('date-selector');
             const today = new Date();
             today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
             dateSelector.value = today.toISOString().split('T')[0];
             
             dateSelector.addEventListener('change', (event) => {
-                // 修正：只有在登入狀態下，改變日期才觸發讀取
                 if (auth.currentUser) {
                     fetchLogByDate(event.target.value);
                 }
