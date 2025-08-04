@@ -104,7 +104,6 @@
             font-weight: 600;
             color: #4B5563;
         }
-        /* --- 優化: 載入動畫 & 訊息提示框 --- */
         #loader {
             position: fixed;
             top: 0;
@@ -152,7 +151,6 @@
     </style>
 </head>
 <body class="antialiased">
-    <!-- 優化: 新增載入動畫和訊息提示框的 HTML 結構 -->
     <div id="loader" class="hidden"><div class="spinner"></div></div>
     <div id="toast"></div>
 
@@ -172,7 +170,6 @@
 
         <section id="input-form" class="mb-16 hidden">
             <main class="card max-w-4xl mx-auto p-4 sm:p-6">
-                <!-- 表單內容與之前相同 -->
                 <div class="form-section">
                     <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">社區動態輸入</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -210,7 +207,6 @@
                 <div class="form-section">
                     <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">停車紀錄</h2>
                     <div id="parking-records-container" class="space-y-4">
-                        <!-- JS 動態生成 -->
                     </div>
                     <button id="add-parking-record-btn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增停車紀錄</button>
                 </div>
@@ -236,7 +232,6 @@
                 <div class="form-section">
                     <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">今日工作事項</h2>
                     <div id="tasks-container" class="space-y-4">
-                        <!-- JS 動態生成 -->
                     </div>
                     <button id="addTaskBtn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增工作事項</button>
                 </div>
@@ -272,7 +267,6 @@
             </main>
         </section>
 
-        <!-- 顯示區域的內容與之前相同 -->
         <section id="dashboard-display" class="mb-16">
              <h2 class="section-title text-3xl">社區核心數據</h2>
             <p class="section-subtitle">即時掌握社區的關鍵數據，包含總戶數與裝潢進度概覽。</p>
@@ -314,7 +308,6 @@
                                 </tr>
                             </thead>
                             <tbody id="parking-table-body">
-                                <!-- JS 動態生成 -->
                             </tbody>
                         </table>
                     </div>
@@ -345,7 +338,6 @@
                                 </tr>
                             </thead>
                             <tbody id="staffing-table-body">
-                                <!-- JS 動態生成 -->
                             </tbody>
                         </table>
                     </div>
@@ -358,7 +350,6 @@
                  <h2 class="section-title text-3xl">每日清點</h2>
                  <p class="section-subtitle">以下為今日工作日誌中的清點項目與其完成狀態。</p>
                  <div id="checklist-kpi-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- JS 動態生成 -->
                  </div>
             </div>
         </section>
@@ -375,7 +366,6 @@
                                 </tr>
                             </thead>
                             <tbody id="tasks-table-body">
-                                <!-- JS 動態生成 -->
                             </tbody>
                         </table>
                     </div>
@@ -393,7 +383,6 @@
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // --- Firebase 設定 ---
         const firebaseConfig = {
             apiKey: "AIzaSyDeRHsloR1iY0_bzpYbPzdCiBljGfck98k",
             authDomain: "jy-2025.firebaseapp.com",
@@ -407,13 +396,10 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         
-        // --- 全域變數與設定 ---
         const ADMIN_EMAIL = "jerrylee0217520@gmail.com";
         let renovationChart = null;
         let taskCount = 0;
-        let parkingRecordCount = 0;
 
-        // --- DOM 元素 ---
         const authButton = document.getElementById('auth-button');
         const userStatus = document.getElementById('user-status');
         const inputForm = document.getElementById('input-form');
@@ -421,7 +407,6 @@
         const loader = document.getElementById('loader');
         const toast = document.getElementById('toast');
 
-        // --- UI 控制函式 ---
         const showLoader = () => loader.classList.remove('hidden');
         const hideLoader = () => loader.classList.add('hidden');
 
@@ -434,31 +419,9 @@
             }, 3000);
         }
 
-        // --- 驗證 (Authentication) ---
-        /*
-         * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         * !!!       極重要安全性提醒       !!!
-         * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         *
-         * 您收到的「權限不足」錯誤，根源在於 Firebase 後端的安全規則。
-         * 前端程式碼無法繞過此限制。
-         *
-         * 請務必到您的 Firebase 專案 > Firestore Database > 規則 (Rules)
-         * 將規則修改為至少允許登入者讀取。
-         *
-         * 範例規則 (允許任何登入的使用者讀寫，較不安全但可先讓系統運作):
-         *
-         * rules_version = '2';
-         * service cloud.firestore {
-         * match /databases/{database}/documents {
-         * match /{document=**} {
-         * allow read, write: if request.auth != null;
-         * }
-         * }
-         * }
-        */
         onAuthStateChanged(auth, (user) => {
-            if (user) {
+            // 修正: 只有在使用者登入後才讀取資料
+            if (user && user.email) {
                 authButton.innerText = '登出';
                 if (user.email.toLowerCase() === ADMIN_EMAIL) {
                     userStatus.innerText = `管理員模式：${user.displayName}`;
@@ -467,12 +430,16 @@
                     userStatus.innerText = `訪客模式：${user.displayName} (無編輯權限)`;
                     inputForm.classList.add('hidden');
                 }
+                // 只有在確認使用者已登入後，才執行讀取資料的動作
+                fetchLogByDate(document.getElementById('date-selector').value);
             } else {
-                userStatus.innerText = '訪客模式，請登入以編輯。';
+                // 若使用者未登入，則顯示對應狀態並清空儀表板
+                userStatus.innerText = '訪客模式，請登入以讀取資料。';
                 authButton.innerText = '登入 Google';
                 inputForm.classList.add('hidden');
+                // 清空儀表板，避免顯示舊資料或觸發權限錯誤
+                updateDashboard(null);
             }
-            fetchLogByDate(document.getElementById('date-selector').value);
         });
 
         authButton.addEventListener('click', () => {
@@ -487,7 +454,6 @@
             }
         });
 
-        // --- 資料庫互動 (Firestore) ---
         async function saveLogToFirestore() {
             if (!auth.currentUser) {
                 showToast('請先登入才能儲存日誌！', 'error');
@@ -512,7 +478,6 @@
                 showToast(`日期為 ${logDate} 的日誌已成功儲存！`, 'success');
             } catch (e) {
                 console.error("儲存日誌時發生錯誤: ", e);
-                // 修正: 針對權限問題提供更明確的提示
                 if (e.code === 'permission-denied' || e.message.includes('permission-denied') || e.message.includes('insufficient permissions')) {
                     showToast("儲存權限不足", "error");
                     userStatus.innerHTML = `<span class="text-red-600 font-bold">錯誤：權限不足，無法寫入資料庫。<br>請系統管理員設定 Firebase 安全規則以允許寫入。</span>`;
@@ -547,7 +512,6 @@
                 }
             } catch (error) {
                 console.error("讀取資料時發生錯誤:", error);
-                // 修正: 針對權限問題提供更明確的提示
                 if (error.code === 'permission-denied' || error.message.includes('permission-denied') || error.message.includes('insufficient permissions')) {
                     showToast("讀取權限不足", "error");
                     userStatus.innerHTML = `<span class="text-red-600 font-bold">錯誤：權限不足，無法讀取資料庫。<br>請系統管理員設定 Firebase 安全規則以允許讀取。</span>`;
@@ -560,7 +524,6 @@
             }
         }
 
-        // --- 表單與資料處理 (此區塊無變更) ---
         function getFormData() {
             const date = document.getElementById('date-selector').value;
             const totalRenovation = document.getElementById('totalRenovation').value;
@@ -603,7 +566,6 @@
             };
         }
 
-        // --- UI 更新函式 (此區塊無變更) ---
         function updateDashboard(data) {
             const selectedDate = document.getElementById('date-selector').value;
             const dateObj = new Date(selectedDate + 'T00:00:00');
@@ -716,7 +678,6 @@
             
             const parkingRecordsContainer = document.getElementById('parking-records-container');
             parkingRecordsContainer.innerHTML = '';
-            parkingRecordCount = 0;
             (data.parking || []).forEach(record => addParkingRecord(record));
             if ((data.parking || []).length === 0) addParkingRecord();
         }
@@ -734,7 +695,6 @@
 
             const parkingRecordsContainer = document.getElementById('parking-records-container');
             parkingRecordsContainer.innerHTML = '';
-            parkingRecordCount = 0;
             addParkingRecord();
         }
         
@@ -839,7 +799,6 @@
             document.body.removeChild(link);
         }
 
-        // --- 初始化與事件監聽 ---
         document.addEventListener('DOMContentLoaded', () => {
             const dateSelector = document.getElementById('date-selector');
             const today = new Date();
@@ -847,7 +806,10 @@
             dateSelector.value = today.toISOString().split('T')[0];
             
             dateSelector.addEventListener('change', (event) => {
-                fetchLogByDate(event.target.value);
+                // 修正：只有在登入狀態下，改變日期才觸發讀取
+                if (auth.currentUser) {
+                    fetchLogByDate(event.target.value);
+                }
             });
             
             document.querySelectorAll('#input-form input, #input-form textarea').forEach(input => {
