@@ -315,11 +315,9 @@
             listenForAuthStateChanges() {
                 onAuthStateChanged(this.auth, (user) => {
                     if (user) {
-                        // 使用者已登入 (無論是匿名或 Google)
                         this.user = user;
                         this.handleAuthStateChange(user);
                     } else {
-                        // 尚未有任何登入狀態，執行匿名登入以取得讀取權限
                         signInAnonymously(this.auth).catch(error => {
                             console.error("匿名登入失敗:", error);
                             this.elements.userStatus.innerText = "錯誤：無法連接至資料庫";
@@ -345,7 +343,6 @@
             
             updateAuthUI(user) {
                 if (user && !user.isAnonymous) {
-                    // Google 帳號登入
                     this.elements.authButton.innerText = '登出';
                     if (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
                         this.elements.userStatus.innerText = `管理員模式：${user.displayName}`;
@@ -355,7 +352,6 @@
                         this.elements.inputForm.classList.add('hidden');
                     }
                 } else {
-                    // 訪客 (匿名登入)
                     this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
                     this.elements.authButton.innerText = '管理員登入';
                     this.elements.inputForm.classList.add('hidden');
