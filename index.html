@@ -46,7 +46,7 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border: 1px solid var(--border-color);
-            border-radius: 1.5rem; /* 更大的圓角 */
+            border-radius: 1.5rem;
             box-shadow: 0 8px 32px 0 var(--shadow-color);
             transition: transform 0.3s ease, box-shadow 0.4s ease;
         }
@@ -86,27 +86,10 @@
         .section-subtitle { color: var(--text-medium); }
 
         /* --- KPI 卡片美化 --- */
-        .kpi-card {
-            padding: 2rem;
-        }
-        .kpi-icon {
-            width: 48px;
-            height: 48px;
-            margin: 0 auto 1rem auto;
-            color: var(--primary-color);
-        }
-        .kpi-value {
-            font-size: 3.5rem;
-            font-weight: 900;
-            line-height: 1;
-            color: var(--text-dark);
-        }
-        .kpi-label {
-            font-size: 1rem;
-            font-weight: 500;
-            color: var(--text-light);
-            margin-top: 0.75rem;
-        }
+        .kpi-card { padding: 2rem; }
+        .kpi-icon { width: 48px; height: 48px; margin: 0 auto 1rem auto; color: var(--primary-color); }
+        .kpi-value { font-size: 3.5rem; font-weight: 900; line-height: 1; color: var(--text-dark); }
+        .kpi-label { font-size: 1rem; font-weight: 500; color: var(--text-light); margin-top: 0.75rem; }
 
         /* --- 表單元素美化 --- */
         .form-input {
@@ -132,25 +115,51 @@
             transform: translateY(-2px);
             box-shadow: 0 7px 20px 0 rgba(0, 166, 166, 0.4);
         }
-
-        /* --- 表格美化 --- */
-        table {
-            border-radius: 1rem;
-            overflow: hidden;
+        
+        /* --- 全新日期導航器樣式 --- */
+        .date-navigator {
+            max-width: 28rem;
+            padding: 0.75rem;
         }
-        th {
-            background-color: rgba(243, 244, 246, 0.7);
+        #date-selector {
+            font-size: 1.25rem;
             font-weight: 700;
             color: var(--text-dark);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            border: 2px solid transparent;
+            text-align: center;
+            padding: 0.5rem 1rem;
         }
-        tr:last-child td {
-            border-bottom: none;
+        #date-selector::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            filter: invert(0.5);
         }
-        tr:hover {
-            background-color: rgba(230, 245, 245, 0.5);
+        .date-nav-btn {
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-medium);
+            transition: all 0.3s ease;
         }
+        .date-nav-btn:hover:not(:disabled) {
+            background-color: #fff;
+            color: var(--primary-color);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .date-nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* --- 表格美化 --- */
+        table { border-radius: 1rem; overflow: hidden; }
+        th { background-color: rgba(243, 244, 246, 0.7); font-weight: 700; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.05em; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background-color: rgba(230, 245, 245, 0.5); }
 
         /* --- 訊息提示框 --- */
         #toast { position: fixed; top: 20px; right: 20px; padding: 1rem 1.5rem; border-radius: 0.75rem; color: white; font-weight: 600; z-index: 10000; opacity: 0; transform: translateY(-20px); transition: opacity 0.3s, transform 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
@@ -165,10 +174,18 @@
     <div class="container mx-auto p-4 sm:p-6 md:p-8">
         <header class="text-center mb-16">
             <h1 class="main-title mb-4">佳元松江社區 營運儀表板</h1>
-            <div class="flex items-center justify-center mt-4 bg-white/30 backdrop-blur-sm p-3 rounded-xl max-w-md mx-auto shadow-sm">
-                <label for="date-selector" class="text-lg text-gray-600 mr-3 font-semibold">選擇日期：</label>
-                <input type="date" id="date-selector" class="form-input w-48">
+            
+            <!-- *** 全新日期導航器 *** -->
+            <div class="card date-navigator mx-auto flex items-center justify-between space-x-2">
+                <button id="prev-day-btn" class="date-nav-btn" disabled>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <input type="date" id="date-selector" class="form-input flex-grow" disabled>
+                <button id="next-day-btn" class="date-nav-btn" disabled>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
             </div>
+
             <p class="text-lg text-gray-500 mt-4">當前日期：<span id="displayDate" class="font-bold"></span></p>
             <div class="mt-6">
                 <button id="auth-button" class="btn-primary px-6 py-3 text-lg">登入 Google</button>
@@ -274,7 +291,9 @@
                     inputForm: document.getElementById('input-form'),
                     saveLogBtn: document.getElementById('save-log-btn'),
                     dateSelector: document.getElementById('date-selector'),
-                    displayDate: document.getElementById('displayDate')
+                    displayDate: document.getElementById('displayDate'),
+                    prevDayBtn: document.getElementById('prev-day-btn'),
+                    nextDayBtn: document.getElementById('next-day-btn'),
                 };
             },
 
@@ -288,6 +307,11 @@
                 });
 
                 this.elements.dateSelector.addEventListener('change', (event) => this.fetchLogByDate(event.target.value));
+                
+                // *** 新增：前後一天按鈕的事件 ***
+                this.elements.prevDayBtn.addEventListener('click', () => this.changeDate(-1));
+                this.elements.nextDayBtn.addEventListener('click', () => this.changeDate(1));
+
                 this.elements.saveLogBtn.addEventListener('click', () => this.saveLogToFirestore());
                 document.getElementById('generate-csv-btn').addEventListener('click', () => this.generateCsv());
                 document.getElementById('addTaskBtn').addEventListener('click', () => this.addTask());
@@ -329,6 +353,8 @@
             handleAuthStateChange(user) {
                 this.updateAuthUI(user);
                 this.elements.dateSelector.disabled = false;
+                this.elements.prevDayBtn.disabled = false;
+                this.elements.nextDayBtn.disabled = false;
                 this.fetchLogByDate(this.elements.dateSelector.value);
             },
 
@@ -530,6 +556,15 @@
                 div.innerHTML = `<div><label class="block mb-2 form-label">停放時間</label><input type="time" class="form-input parking-input" data-field="parkingTime" value="${record.parkingTime || ''}"></div><div><label class="block mb-2 form-label">離開時間</label><input type="time" class="form-input parking-input" data-field="leaveTime" value="${record.leaveTime || ''}"></div><div><label class="block mb-2 form-label">車牌號碼</label><input type="text" class="form-input parking-input" data-field="carPlate" value="${record.carPlate || ''}"></div><div><label class="block mb-2 form-label">戶別</label><input type="text" class="form-input parking-input" data-field="huBei" value="${record.huBei || ''}"></div><div><label class="block mb-2 form-label">停車人</label><input type="text" class="form-input parking-input" data-field="parker" value="${record.parker || ''}"></div><div><label class="block mb-2 form-label">停放地點</label><input type="text" class="form-input parking-input" data-field="location" value="${record.location || ''}"></div><div><label class="block mb-2 form-label">車位號</label><input type="text" class="form-input parking-input" data-field="spot" value="${record.spot || ''}"></div>`;
                 div.querySelectorAll('input').forEach(input => { input.addEventListener('input', () => this.updateDashboardFromForm()); });
                 container.appendChild(div);
+            },
+            
+            // *** 新增：改變日期的方法 ***
+            changeDate(offset) {
+                const currentDate = new Date(this.elements.dateSelector.value + 'T00:00:00');
+                currentDate.setDate(currentDate.getDate() + offset);
+                this.elements.dateSelector.value = currentDate.toISOString().split('T')[0];
+                // 手動觸發 change 事件以載入新日期的資料
+                this.elements.dateSelector.dispatchEvent(new Event('change'));
             },
 
             generateCsv() {
