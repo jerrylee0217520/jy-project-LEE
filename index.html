@@ -175,7 +175,6 @@
         <header class="text-center mb-16">
             <h1 class="main-title mb-4">佳元松江社區 營運儀表板</h1>
             
-            <!-- *** 全新日期導航器 *** -->
             <div class="card date-navigator mx-auto flex items-center justify-between space-x-2">
                 <button id="prev-day-btn" class="date-nav-btn" disabled>
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
@@ -195,7 +194,6 @@
 
         <section id="input-form" class="mb-16 hidden">
             <main class="card max-w-4xl mx-auto p-6 sm:p-8">
-                <!-- HTML 表單結構與之前相同 -->
                 <div class="form-section">
                     <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">社區動態輸入</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -224,7 +222,6 @@
             </main>
         </section>
 
-        <!-- 顯示區域的 HTML 結構與之前相同 -->
         <section id="dashboard-display" class="mb-16">
             <h2 class="section-title text-3xl">社區核心數據</h2>
             <p class="section-subtitle">即時掌握社區的關鍵數據，包含總戶數與裝潢進度概覽。</p>
@@ -308,7 +305,6 @@
 
                 this.elements.dateSelector.addEventListener('change', (event) => this.fetchLogByDate(event.target.value));
                 
-                // *** 新增：前後一天按鈕的事件 ***
                 this.elements.prevDayBtn.addEventListener('click', () => this.changeDate(-1));
                 this.elements.nextDayBtn.addEventListener('click', () => this.changeDate(1));
 
@@ -354,8 +350,22 @@
                 this.updateAuthUI(user);
                 this.elements.dateSelector.disabled = false;
                 this.elements.prevDayBtn.disabled = false;
-                this.elements.nextDayBtn.disabled = false;
+                // 注意：我們不再無條件啟用 nextDayBtn，因為它的狀態將由 updateDateNavButtonsState 管理
                 this.fetchLogByDate(this.elements.dateSelector.value);
+            },
+
+            // *** ✨ 新增：管理日期導航按鈕狀態的函式 ✨ ***
+            updateDateNavButtonsState() {
+                const today = new Date();
+                // 將今天的日期物件標準化，移除時間部分，以便精確比較
+                today.setHours(0, 0, 0, 0); 
+                
+                // 解析選擇器中的日期字串，並確保它被視為本地時區的午夜
+                const selectedDate = new Date(this.elements.dateSelector.value + 'T00:00:00');
+                
+                // 如果選擇的日期大於或等於今天，就禁用「下一天」按鈕
+                // 這樣可以防止用戶跳轉到未來的日期
+                this.elements.nextDayBtn.disabled = selectedDate >= today;
             },
 
             showToast(message, type = 'success') {
@@ -404,6 +414,7 @@
                 }
             },
 
+            // *** ✨ 修改：在讀取資料後更新按鈕狀態 ✨ ***
             async fetchLogByDate(date) {
                 if (!date) return;
                 try {
@@ -426,6 +437,9 @@
                     const message = error.code === 'permission-denied' ? "權限不足，請檢查Firebase安全規則" : "讀取資料失敗！";
                     this.showToast(message, 'error');
                     this.updateDashboard(null);
+                } finally {
+                    // 不論成功或失敗，每次日期變更後都呼叫此函式來更新按鈕狀態
+                    this.updateDateNavButtonsState();
                 }
             },
 
@@ -558,12 +572,10 @@
                 container.appendChild(div);
             },
             
-            // *** 新增：改變日期的方法 ***
             changeDate(offset) {
                 const currentDate = new Date(this.elements.dateSelector.value + 'T00:00:00');
                 currentDate.setDate(currentDate.getDate() + offset);
                 this.elements.dateSelector.value = currentDate.toISOString().split('T')[0];
-                // 手動觸發 change 事件以載入新日期的資料
                 this.elements.dateSelector.dispatchEvent(new Event('change'));
             },
 
