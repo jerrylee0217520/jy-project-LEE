@@ -167,7 +167,7 @@
             <h1 class="main-title mb-4">佳元松江社區 營運儀表板</h1>
             <div class="flex items-center justify-center mt-4 bg-white/30 backdrop-blur-sm p-3 rounded-xl max-w-md mx-auto shadow-sm">
                 <label for="date-selector" class="text-lg text-gray-600 mr-3 font-semibold">選擇日期：</label>
-                <input type="date" id="date-selector" class="form-input w-48" disabled>
+                <input type="date" id="date-selector" class="form-input w-48">
             </div>
             <p class="text-lg text-gray-500 mt-4">當前日期：<span id="displayDate" class="font-bold"></span></p>
             <div class="mt-6">
@@ -194,30 +194,15 @@
                 <div class="form-section"><h2 class="text-2xl font-semibold mb-4 text-[#E55934]">停車紀錄</h2><div id="parking-records-container" class="space-y-4"></div><button id="add-parking-record-btn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增停車紀錄</button></div>
                 <div class="form-section"><h2 class="text-2xl font-semibold mb-4 text-[#E55934]">每日清點</h2><div class="space-y-2"><div class="flex items-center"><input type="checkbox" id="check1" checked class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded"><label for="check1" class="ml-2 block text-sm text-gray-900">公共區域門窗安全檢查</label></div><div class="flex items-center"><input type="checkbox" id="check2" class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded"><label for="check2" class="ml-2 block text-sm text-gray-900">無郵件及包裹點交</label></div><div class="flex items-center"><input type="checkbox" id="check3" checked class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded"><label for="check3" class="ml-2 block text-sm text-gray-900">施工圍籬與施工車輛停放位置確認</label></div></div></div>
                 <div class="form-section"><h2 class="text-2xl font-semibold mb-4 text-[#E55934]">今日工作事項</h2><div id="tasks-container" class="space-y-4"></div><button id="addTaskBtn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增工作事項</button></div>
-                
-                <!-- *** 修正: 調整人員編制區塊的版面配置 *** -->
                 <div class="form-section">
                     <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">人員編制</h2>
                     <div class="space-y-4">
-                        <div>
-                            <label for="managerName" class="block mb-2 form-label">經理姓名</label>
-                            <input type="text" id="managerName" class="form-input" value="李俊煌">
-                        </div>
-                        <div>
-                            <label for="todayShift" class="block mb-2 form-label">今日出勤</label>
-                            <input type="text" id="todayShift" class="form-input" value="早班 08:00–17:00">
-                        </div>
-                        <div>
-                            <label for="tomorrowShift" class="block mb-2 form-label">明日出勤</label>
-                            <input type="text" id="tomorrowShift" class="form-input" value="休假">
-                        </div>
-                        <div>
-                            <label for="shiftNotes" class="block mb-2 form-label">備註</label>
-                            <textarea id="shiftNotes" class="form-input" rows="4">兼任保全巡場、門禁與安檢工作</textarea>
-                        </div>
+                        <div><label for="managerName" class="block mb-2 form-label">經理姓名</label><input type="text" id="managerName" class="form-input" value="李俊煌"></div>
+                        <div><label for="todayShift" class="block mb-2 form-label">今日出勤</label><input type="text" id="todayShift" class="form-input" value="早班 08:00–17:00"></div>
+                        <div><label for="tomorrowShift" class="block mb-2 form-label">明日出勤</label><input type="text" id="tomorrowShift" class="form-input" value="休假"></div>
+                        <div><label for="shiftNotes" class="block mb-2 form-label">備註</label><textarea id="shiftNotes" class="form-input" rows="4">兼任保全巡場、門禁與安檢工作</textarea></div>
                     </div>
                 </div>
-                
                 <div class="text-center space-x-4 mt-6"><button id="save-log-btn" class="btn-primary">儲存日誌</button><button id="generate-csv-btn" class="btn-primary">產生 CSV</button></div>
             </main>
         </section>
@@ -227,34 +212,10 @@
             <h2 class="section-title text-3xl">社區核心數據</h2>
             <p class="section-subtitle">即時掌握社區的關鍵數據，包含總戶數與裝潢進度概覽。</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-                <div class="kpi-card fade-in">
-                    <div class="kpi-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" /></svg>
-                    </div>
-                    <div id="kpi-total-households" class="kpi-value">-</div>
-                    <div class="kpi-label">總戶數</div>
-                </div>
-                <div class="kpi-card fade-in" style="animation-delay: 0.1s;">
-                     <div class="kpi-icon" style="color: var(--secondary-color);">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.43 2.43a4.5 4.5 0 008.636-2.021.75.75 0 00-1.425-.245zM12.75 4.5a4.5 4.5 0 014.5 4.5v8.25a.75.75 0 01-1.5 0v-8.25a3 3 0 00-3-3H6.75a.75.75 0 010-1.5h6z" /></svg>
-                    </div>
-                    <div id="kpi-total-renovation" class="kpi-value">-</div>
-                    <div class="kpi-label">總裝潢施作戶數</div>
-                </div>
-                <div class="kpi-card fade-in" style="animation-delay: 0.2s;">
-                     <div class="kpi-icon" style="color: var(--accent-color);">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" /></svg>
-                    </div>
-                    <div id="kpi-total-renovation-accum" class="kpi-value">-</div>
-                    <div class="kpi-label">裝潢總計(累計)</div>
-                </div>
-                <div class="kpi-card fade-in" style="animation-delay: 0.3s;">
-                     <div class="kpi-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </div>
-                    <div id="kpi-renovation-retired-accum" class="kpi-value">-</div>
-                    <div class="kpi-label">已驗退戶(累計)</div>
-                </div>
+                <div class="kpi-card fade-in"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" /></svg></div><div id="kpi-total-households" class="kpi-value">-</div><div class="kpi-label">總戶數</div></div>
+                <div class="kpi-card fade-in" style="animation-delay: 0.1s;"><div class="kpi-icon" style="color: var(--secondary-color);"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.43 2.43a4.5 4.5 0 008.636-2.021.75.75 0 00-1.425-.245zM12.75 4.5a4.5 4.5 0 014.5 4.5v8.25a.75.75 0 01-1.5 0v-8.25a3 3 0 00-3-3H6.75a.75.75 0 010-1.5h6z" /></svg></div><div id="kpi-total-renovation" class="kpi-value">-</div><div class="kpi-label">總裝潢施作戶數</div></div>
+                <div class="kpi-card fade-in" style="animation-delay: 0.2s;"><div class="kpi-icon" style="color: var(--accent-color);"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" /></svg></div><div id="kpi-total-renovation-accum" class="kpi-value">-</div><div class="kpi-label">裝潢總計(累計)</div></div>
+                <div class="kpi-card fade-in" style="animation-delay: 0.3s;"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div><div id="kpi-renovation-retired-accum" class="kpi-value">-</div><div class="kpi-label">已驗退戶(累計)</div></div>
             </div>
         </section>
         <section id="parking-display" class="mb-16"><div class="card max-w-5xl mx-auto p-4 sm:p-6"><h2 class="section-title text-3xl">停車紀錄</h2><p class="section-subtitle">以下為今日社區停車紀錄清單。</p><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放時間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">離開時間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車牌號碼</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">戶別</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停車人</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放地點</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車位號</th></tr></thead><tbody id="parking-table-body"></tbody></table></div></div></section>
@@ -271,7 +232,7 @@
         // --- Firebase 模組 ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- 全局設定 ---
         const firebaseConfig = {
@@ -319,13 +280,14 @@
 
             bindPermanentEventListeners() {
                 this.elements.authButton.addEventListener('click', () => {
-                    if (this.user) {
+                    if (this.user && !this.user.isAnonymous) {
                         signOut(this.auth);
                     } else {
                         signInWithPopup(this.auth, new GoogleAuthProvider()).catch(err => console.error("登入錯誤:", err));
                     }
                 });
 
+                this.elements.dateSelector.addEventListener('change', (event) => this.fetchLogByDate(event.target.value));
                 this.elements.saveLogBtn.addEventListener('click', () => this.saveLogToFirestore());
                 document.getElementById('generate-csv-btn').addEventListener('click', () => this.generateCsv());
                 document.getElementById('addTaskBtn').addEventListener('click', () => this.addTask());
@@ -352,22 +314,24 @@
 
             listenForAuthStateChanges() {
                 onAuthStateChanged(this.auth, (user) => {
-                    this.user = user;
-                    this.handleAuthStateChange(user);
+                    if (user) {
+                        // 使用者已登入 (無論是匿名或 Google)
+                        this.user = user;
+                        this.handleAuthStateChange(user);
+                    } else {
+                        // 尚未有任何登入狀態，執行匿名登入以取得讀取權限
+                        signInAnonymously(this.auth).catch(error => {
+                            console.error("匿名登入失敗:", error);
+                            this.elements.userStatus.innerText = "錯誤：無法連接至資料庫";
+                        });
+                    }
                 });
             },
 
             handleAuthStateChange(user) {
                 this.updateAuthUI(user);
-                if (user) {
-                    this.elements.dateSelector.disabled = false;
-                    this.elements.dateSelector.onchange = (event) => this.fetchLogByDate(event.target.value);
-                    this.fetchLogByDate(this.elements.dateSelector.value);
-                } else {
-                    this.elements.dateSelector.disabled = true;
-                    this.elements.dateSelector.onchange = null;
-                    this.updateDashboard(null);
-                }
+                this.elements.dateSelector.disabled = false;
+                this.fetchLogByDate(this.elements.dateSelector.value);
             },
 
             showToast(message, type = 'success') {
@@ -380,7 +344,8 @@
             },
             
             updateAuthUI(user) {
-                if (user) {
+                if (user && !user.isAnonymous) {
+                    // Google 帳號登入
                     this.elements.authButton.innerText = '登出';
                     if (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
                         this.elements.userStatus.innerText = `管理員模式：${user.displayName}`;
@@ -390,14 +355,15 @@
                         this.elements.inputForm.classList.add('hidden');
                     }
                 } else {
-                    this.elements.userStatus.innerText = '訪客模式，請登入以讀取資料。';
-                    this.elements.authButton.innerText = '登入 Google';
+                    // 訪客 (匿名登入)
+                    this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
+                    this.elements.authButton.innerText = '管理員登入';
                     this.elements.inputForm.classList.add('hidden');
                 }
             },
 
             async saveLogToFirestore() {
-                if (!this.user) return this.showToast('請先登入才能儲存！', 'error');
+                if (!this.user || this.user.isAnonymous) return this.showToast('請先登入才能儲存！', 'error');
                 if (!this.user.email || this.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return this.showToast('您沒有權限儲存！', 'error');
                 
                 const data = this.getFormData();
@@ -417,15 +383,12 @@
             },
 
             async fetchLogByDate(date) {
-                if (!this.user || !date) {
-                    this.updateDashboard(null);
-                    return;
-                }
+                if (!date) return;
                 try {
                     const docRef = doc(this.db, 'daily_logs', date);
                     const docSnap = await getDoc(docRef);
 
-                    const isUserAdmin = this.user && this.user.email && this.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                    const isUserAdmin = this.user && !this.user.isAnonymous && this.user.email && this.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -471,8 +434,11 @@
             },
 
             updateDashboard(data) {
-                if (!this.user || !this.elements.dateSelector.value) {
-                    this.elements.displayDate.innerText = '請先登入';
+                const dateObj = new Date(this.elements.dateSelector.value + 'T00:00:00');
+                this.elements.displayDate.innerText = dateObj.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
+
+                if (!data) {
+                    this.elements.displayDate.innerText = '請選擇日期或該日無資料';
                     ['kpi-total-households', 'kpi-total-renovation', 'kpi-total-renovation-accum', 'kpi-renovation-retired-accum'].forEach(id => document.getElementById(id).innerText = '-');
                     ['checklist-kpi-container', 'staffing-table-body', 'tasks-table-body', 'parking-table-body'].forEach(id => document.getElementById(id).innerHTML = '');
                     if (this.renovationChart) {
@@ -482,11 +448,6 @@
                     return;
                 }
                 
-                const dateObj = new Date(this.elements.dateSelector.value + 'T00:00:00');
-                this.elements.displayDate.innerText = dateObj.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
-
-                if (!data) return;
-
                 document.getElementById('kpi-total-households').innerText = data.community.totalHouseholds || '-';
                 document.getElementById('kpi-total-renovation').innerText = data.community.totalRenovation || '-';
                 document.getElementById('kpi-total-renovation-accum').innerText = data.community.totalRenovationAccum || '-';
