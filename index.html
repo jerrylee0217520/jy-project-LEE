@@ -110,7 +110,8 @@
             messagingSenderId: "640527461851",
             appId: "1:640527461851:web:eed9f82d698275371fcbfe",
         };
-        const ADMIN_EMAIL = "jerrylee0217520@gmail.com";
+        // *** 修正: 將 ADMIN_EMAIL 改為您提供的正確 Email ***
+        const ADMIN_EMAIL = "jerrylee0217@gmail.com";
 
         // --- 應用程式核心物件 (全新重構) ---
         const App = {
@@ -210,7 +211,8 @@
             updateAuthUI(user) {
                 if (user) {
                     this.elements.authButton.innerText = '登出';
-                    if (user.email && user.email.toLowerCase() === ADMIN_EMAIL) {
+                    // *** 修正: 增加對 user.email 的存在性檢查，並確保比較時都轉為小寫 ***
+                    if (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
                         this.elements.userStatus.innerText = `管理員模式：${user.displayName}`;
                         this.elements.inputForm.classList.remove('hidden');
                     } else {
@@ -226,7 +228,7 @@
 
             async saveLogToFirestore() {
                 if (!this.user) return this.showToast('請先登入才能儲存！', 'error');
-                if (!this.user.email || this.user.email.toLowerCase() !== ADMIN_EMAIL) return this.showToast('您沒有權限儲存！', 'error');
+                if (!this.user.email || this.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return this.showToast('您沒有權限儲存！', 'error');
                 
                 const data = this.getFormData();
                 if (!data.date) return this.showToast('請選擇日期！', 'error');
@@ -253,7 +255,7 @@
                     const docRef = doc(this.db, 'daily_logs', date);
                     const docSnap = await getDoc(docRef);
 
-                    const isUserAdmin = this.user && this.user.email && this.user.email.toLowerCase() === ADMIN_EMAIL;
+                    const isUserAdmin = this.user && this.user.email && this.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
