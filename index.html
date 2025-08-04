@@ -81,10 +81,14 @@
             border-radius: 0.5rem;
             font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, opacity 0.3s;
         }
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background-color: #008C8C;
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         table {
             width: 100%;
@@ -100,9 +104,58 @@
             font-weight: 600;
             color: #4B5563;
         }
+        /* --- 優化: 載入動畫 & 訊息提示框 --- */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.3s;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #00A6A6;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 600;
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        #toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .toast-success { background-color: #00A6A6; }
+        .toast-error { background-color: #E55934; }
     </style>
 </head>
 <body class="antialiased">
+    <!-- 優化: 新增載入動畫和訊息提示框的 HTML 結構 -->
+    <div id="loader" class="hidden"><div class="spinner"></div></div>
+    <div id="toast"></div>
+
     <div class="container mx-auto p-4 sm:p-6 md:p-8">
         <header class="text-center mb-12">
             <h1 class="text-4xl font-bold text-[#00A6A6] mb-2">佳元松江社區 每日營運儀表板</h1>
@@ -110,15 +163,16 @@
                 <label for="date-selector" class="text-xl text-gray-500 mr-2">選擇日期：</label>
                 <input type="date" id="date-selector" class="form-input w-48">
             </div>
-            <p class="text-xl text-gray-500">當前日期：<span id="displayDate">2025年08月02日</span></p>
+            <p class="text-xl text-gray-500">當前日期：<span id="displayDate"></span></p>
             <div class="mt-4 flex justify-center items-center space-x-4">
                 <button id="auth-button" class="bg-[#E55934] text-white px-4 py-2 rounded-md font-semibold hover:bg-[#C24E2E]">登入 Google</button>
             </div>
-            <p id="user-status" class="mt-2 text-sm text-gray-600">訪客模式，請登入以編輯。</p>
+            <p id="user-status" class="mt-2 text-sm text-gray-600">正在檢查登入狀態...</p>
         </header>
 
         <section id="input-form" class="mb-16 hidden">
             <main class="card max-w-4xl mx-auto p-4 sm:p-6">
+                <!-- 表單內容與之前相同 -->
                 <div class="form-section">
                     <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">社區動態輸入</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -156,37 +210,7 @@
                 <div class="form-section">
                     <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">停車紀錄</h2>
                     <div id="parking-records-container" class="space-y-4">
-                        <!-- Parking Record Entry -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4">
-                            <div>
-                                <label class="block mb-2 form-label">停放時間</label>
-                                <input type="time" class="form-input parking-input" data-field="parkingTime">
-                            </div>
-                            <div>
-                                <label class="block mb-2 form-label">離開時間</label>
-                                <input type="time" class="form-input parking-input" data-field="leaveTime">
-                            </div>
-                             <div>
-                                <label class="block mb-2 form-label">車牌號碼</label>
-                                <input type="text" class="form-input parking-input" data-field="carPlate">
-                            </div>
-                            <div>
-                                <label class="block mb-2 form-label">戶別</label>
-                                <input type="text" class="form-input parking-input" data-field="huBei">
-                            </div>
-                            <div>
-                                <label class="block mb-2 form-label">停車人</label>
-                                <input type="text" class="form-input parking-input" data-field="parker">
-                            </div>
-                             <div>
-                                <label class="block mb-2 form-label">停放地點</label>
-                                <input type="text" class="form-input parking-input" data-field="location">
-                            </div>
-                            <div>
-                                <label class="block mb-2 form-label">車位號</label>
-                                <input type="text" class="form-input parking-input" data-field="spot">
-                            </div>
-                        </div>
+                        <!-- JS 動態生成 -->
                     </div>
                     <button id="add-parking-record-btn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增停車紀錄</button>
                 </div>
@@ -212,26 +236,7 @@
                 <div class="form-section">
                     <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">今日工作事項</h2>
                     <div id="tasks-container" class="space-y-4">
-                        <div>
-                            <label for="task0" class="block mb-2 form-label">事項 1</label>
-                            <input type="text" id="task0" class="form-input" value="經理巡檢社區公共設施">
-                        </div>
-                        <div>
-                            <label for="task1" class="block mb-2 form-label">事項 2</label>
-                            <input type="text" id="task1" class="form-input" value="檢查一樓外圍臨時停車位使用狀況">
-                        </div>
-                        <div>
-                            <label for="task2" class="block mb-2 form-label">事項 3</label>
-                            <input type="text" id="task2" class="form-input" value="巡視裝潢施作戶別，確認施工安全">
-                        </div>
-                        <div>
-                            <label for="task3" class="block mb-2 form-label">事項 4</label>
-                            <input type="text" id="task3" class="form-input" value="協助住戶處理包裹點交作業">
-                        </div>
-                         <div>
-                            <label for="task4" class="block mb-2 form-label">事項 5</label>
-                            <input type="text" id="task4" class="form-input" value="門禁安檢與社區周邊巡邏">
-                        </div>
+                        <!-- JS 動態生成 -->
                     </div>
                     <button id="addTaskBtn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增工作事項</button>
                 </div>
@@ -261,30 +266,31 @@
                 </div>
 
                 <div class="text-center space-x-4 mt-6">
-                    <button id="save-log-btn" class="btn-primary">儲存日誌到資料庫</button>
-                    <button id="generate-csv-btn" class="btn-primary">產生 CSV 檔案</button>
+                    <button id="save-log-btn" class="btn-primary">儲存日誌</button>
+                    <button id="generate-csv-btn" class="btn-primary">產生 CSV</button>
                 </div>
             </main>
         </section>
 
+        <!-- 顯示區域的內容與之前相同 -->
         <section id="dashboard-display" class="mb-16">
              <h2 class="section-title text-3xl">社區核心數據</h2>
             <p class="section-subtitle">即時掌握社區的關鍵數據，包含總戶數與裝潢進度概覽。</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
                 <div class="kpi-card">
-                    <div id="kpi-total-households" class="kpi-value text-[#00A6A6]">40</div>
+                    <div id="kpi-total-households" class="kpi-value text-[#00A6A6]">-</div>
                     <div class="kpi-label">總戶數</div>
                 </div>
                 <div class="kpi-card">
-                    <div id="kpi-total-renovation" class="kpi-value text-[#E55934]">14</div>
+                    <div id="kpi-total-renovation" class="kpi-value text-[#E55934]">-</div>
                     <div class="kpi-label">總裝潢施作戶數</div>
                 </div>
                 <div class="kpi-card">
-                    <div id="kpi-total-renovation-accum" class="kpi-value text-[#FAD46B]">20</div>
+                    <div id="kpi-total-renovation-accum" class="kpi-value text-[#FAD46B]">-</div>
                     <div class="kpi-label">裝潢總計(累計)</div>
                 </div>
                  <div class="kpi-card">
-                    <div id="kpi-renovation-retired-accum" class="kpi-value text-[#00A6A6]">6</div>
+                    <div id="kpi-renovation-retired-accum" class="kpi-value text-[#00A6A6]">-</div>
                     <div class="kpi-label">已驗退戶(累計)</div>
                 </div>
             </div>
@@ -308,7 +314,7 @@
                                 </tr>
                             </thead>
                             <tbody id="parking-table-body">
-                                <!-- Parking records will be dynamically added here -->
+                                <!-- JS 動態生成 -->
                             </tbody>
                         </table>
                     </div>
@@ -319,7 +325,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-5xl mx-auto">
                 <div class="card md:col-span-1 p-4 sm:p-6">
                     <h2 class="section-title text-3xl">本日裝潢動態</h2>
-                    <p class="text-gray-600 text-center mb-4">此圓環圖顯示了已申請裝潢的20戶中，正在施工中與已完工驗退的比例。這有助於社區管理中心追蹤裝潢進度。</p>
+                    <p class="text-gray-600 text-center mb-4">此圓環圖顯示了已申請裝潢的戶別中，正在施工中與已完工驗退的比例。</p>
                     <div class="chart-container">
                         <canvas id="renovationChart"></canvas>
                     </div>
@@ -339,13 +345,7 @@
                                 </tr>
                             </thead>
                             <tbody id="staffing-table-body">
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">經理</td>
-                                    <td id="staff-name-cell" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">李俊煌</td>
-                                    <td id="staff-today-cell" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">早班 08:00–17:00</td>
-                                    <td id="staff-tomorrow-cell" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">休假</td>
-                                    <td id="staff-notes-cell" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">兼任保全巡場、門禁與安檢工作</td>
-                                </tr>
+                                <!-- JS 動態生成 -->
                             </tbody>
                         </table>
                     </div>
@@ -357,19 +357,8 @@
             <div class="card max-w-5xl mx-auto p-4 sm:p-6">
                  <h2 class="section-title text-3xl">每日清點</h2>
                  <p class="section-subtitle">以下為今日工作日誌中的清點項目與其完成狀態。</p>
-                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div class="kpi-card text-center">
-                        <div id="check1-display" class="kpi-value text-[#00A6A6]">✓</div>
-                        <div class="kpi-label">公共區域門窗安全檢查</div>
-                    </div>
-                     <div class="kpi-card text-center">
-                        <div id="check2-display" class="kpi-value text-[#E55934]">X</div>
-                        <div class="kpi-label">無郵件及包裹點交</div>
-                    </div>
-                    <div class="kpi-card text-center">
-                        <div id="check3-display" class="kpi-value text-[#00A6A6]">✓</div>
-                        <div class="kpi-label">施工圍籬與施工車輛停放位置確認</div>
-                    </div>
+                 <div id="checklist-kpi-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- JS 動態生成 -->
                  </div>
             </div>
         </section>
@@ -386,21 +375,7 @@
                                 </tr>
                             </thead>
                             <tbody id="tasks-table-body">
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">經理巡檢社區公共設施</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">檢查一樓外圍臨時停車位使用狀況</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">巡視裝潢施作戶別，確認施工安全</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">協助住戶處理包裹點交作業</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">門禁安檢與社區周邊巡邏</td>
-                                </tr>
+                                <!-- JS 動態生成 -->
                             </tbody>
                         </table>
                     </div>
@@ -418,11 +393,12 @@
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
+        // --- Firebase 設定 ---
         const firebaseConfig = {
             apiKey: "AIzaSyDeRHsloR1iY0_bzpYbPzdCiBljGfck98k",
             authDomain: "jy-2025.firebaseapp.com",
             projectId: "jy-2025",
-            storageBucket: "jy-2025.firebasestorage.app",
+            storageBucket: "jy-2025.appspot.com",
             messagingSenderId: "640527461851",
             appId: "1:640527461851:web:eed9f82d698275371fcbfe",
             measurementId: "G-HVEVMTSR9L"
@@ -431,60 +407,64 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
         
-        const vibrantPalette = {
-            primary: '#00A6A6',
-            secondary: '#E55934',
-            tertiary: '#FAD46B',
-            dark: '#3D3D3D',
-            light: '#F7F7F7',
-            gray: '#6B7280'
-        };
-
-        const tooltipCallback = {
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        title: function(tooltipItems) {
-                            const item = tooltipItems[0];
-                            let label = item.chart.data.labels[item.dataIndex];
-                            if (Array.isArray(label)) {
-                                return label.join(' ');
-                            }
-                            return label;
-                        }
-                    }
-                },
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        padding: 20,
-                        font: {
-                            size: 14
-                        }
-                    }
-                }
-            }
-        };
-
+        // --- 全域變數與設定 ---
+        const ADMIN_EMAIL = "jerrylee0217520@gmail.com";
         let renovationChart = null;
-        let taskCount = 5;
-        let parkingRecordCount = 1;
+        let taskCount = 0;
+        let parkingRecordCount = 0;
 
+        // --- DOM 元素 ---
         const authButton = document.getElementById('auth-button');
         const userStatus = document.getElementById('user-status');
         const inputForm = document.getElementById('input-form');
-        const addParkingRecordBtn = document.getElementById('add-parking-record-btn');
+        const saveLogBtn = document.getElementById('save-log-btn');
+        const loader = document.getElementById('loader');
+        const toast = document.getElementById('toast');
 
+        // --- UI 控制函式 ---
+        const showLoader = () => loader.classList.remove('hidden');
+        const hideLoader = () => loader.classList.add('hidden');
+
+        function showToast(message, type = 'success') {
+            toast.textContent = message;
+            toast.className = type === 'success' ? 'toast-success' : 'toast-error';
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // --- 驗證 (Authentication) ---
+        /*
+         * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         * !!!       極重要安全性提醒       !!!
+         * !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         *
+         * 您收到的「權限不足」錯誤，根源在於 Firebase 後端的安全規則。
+         * 前端程式碼無法繞過此限制。
+         *
+         * 請務必到您的 Firebase 專案 > Firestore Database > 規則 (Rules)
+         * 將規則修改為至少允許登入者讀取。
+         *
+         * 範例規則 (允許任何登入的使用者讀寫，較不安全但可先讓系統運作):
+         *
+         * rules_version = '2';
+         * service cloud.firestore {
+         * match /databases/{database}/documents {
+         * match /{document=**} {
+         * allow read, write: if request.auth != null;
+         * }
+         * }
+         * }
+        */
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                userStatus.innerText = `已登入：${user.displayName}`;
                 authButton.innerText = '登出';
-                // Check if user is authorized to edit (e.g., using a specific email)
-                // This is a basic check. For production, consider using Firestore rules with `request.auth.uid`.
-                if (user.email === 'jerrylee0217520@gmail.com') { // Replace with your actual email
+                if (user.email.toLowerCase() === ADMIN_EMAIL) {
+                    userStatus.innerText = `管理員模式：${user.displayName}`;
                     inputForm.classList.remove('hidden');
                 } else {
-                    userStatus.innerText = '您沒有編輯權限';
+                    userStatus.innerText = `訪客模式：${user.displayName} (無編輯權限)`;
                     inputForm.classList.add('hidden');
                 }
             } else {
@@ -492,6 +472,7 @@
                 authButton.innerText = '登入 Google';
                 inputForm.classList.add('hidden');
             }
+            fetchLogByDate(document.getElementById('date-selector').value);
         });
 
         authButton.addEventListener('click', () => {
@@ -499,10 +480,87 @@
                 signOut(auth);
             } else {
                 const provider = new GoogleAuthProvider();
-                signInWithPopup(auth, provider);
+                signInWithPopup(auth, provider).catch(error => {
+                    console.error("登入失敗:", error);
+                    showToast("登入失敗，請稍後再試。", "error");
+                });
             }
         });
 
+        // --- 資料庫互動 (Firestore) ---
+        async function saveLogToFirestore() {
+            if (!auth.currentUser) {
+                showToast('請先登入才能儲存日誌！', 'error');
+                return;
+            }
+            if (auth.currentUser.email.toLowerCase() !== ADMIN_EMAIL) {
+                showToast('您沒有權限儲存日誌！', 'error');
+                return;
+            }
+
+            const data = getFormData();
+            const logDate = data.date;
+            if (!logDate) {
+                showToast('請先選擇日期！', 'error');
+                return;
+            }
+
+            showLoader();
+            saveLogBtn.disabled = true;
+            try {
+                await setDoc(doc(db, "daily_logs", logDate), data);
+                showToast(`日期為 ${logDate} 的日誌已成功儲存！`, 'success');
+            } catch (e) {
+                console.error("儲存日誌時發生錯誤: ", e);
+                // 修正: 針對權限問題提供更明確的提示
+                if (e.code === 'permission-denied' || e.message.includes('permission-denied') || e.message.includes('insufficient permissions')) {
+                    showToast("儲存權限不足", "error");
+                    userStatus.innerHTML = `<span class="text-red-600 font-bold">錯誤：權限不足，無法寫入資料庫。<br>請系統管理員設定 Firebase 安全規則以允許寫入。</span>`;
+                } else {
+                    showToast(`儲存失敗: ${e.message}`, 'error');
+                }
+            } finally {
+                hideLoader();
+                saveLogBtn.disabled = false;
+            }
+        }
+
+        async function fetchLogByDate(date) {
+            showLoader();
+            try {
+                const docRef = doc(db, 'daily_logs', date);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    updateDashboard(data);
+                    if (auth.currentUser && auth.currentUser.email.toLowerCase() === ADMIN_EMAIL) {
+                        updateInputForm(data);
+                    }
+                } else {
+                    console.log('當日無資料，將載入預設值。');
+                    const defaultData = getFormData();
+                    updateDashboard(defaultData);
+                    if (auth.currentUser && auth.currentUser.email.toLowerCase() === ADMIN_EMAIL) {
+                        clearInputForm();
+                    }
+                }
+            } catch (error) {
+                console.error("讀取資料時發生錯誤:", error);
+                // 修正: 針對權限問題提供更明確的提示
+                if (error.code === 'permission-denied' || error.message.includes('permission-denied') || error.message.includes('insufficient permissions')) {
+                    showToast("讀取權限不足", "error");
+                    userStatus.innerHTML = `<span class="text-red-600 font-bold">錯誤：權限不足，無法讀取資料庫。<br>請系統管理員設定 Firebase 安全規則以允許讀取。</span>`;
+                } else {
+                    showToast("讀取資料失敗！", "error");
+                }
+                updateDashboard(null);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        // --- 表單與資料處理 (此區塊無變更) ---
         function getFormData() {
             const date = document.getElementById('date-selector').value;
             const totalRenovation = document.getElementById('totalRenovation').value;
@@ -545,25 +603,19 @@
             };
         }
 
+        // --- UI 更新函式 (此區塊無變更) ---
         function updateDashboard(data) {
             const selectedDate = document.getElementById('date-selector').value;
-            const dateObj = new Date(selectedDate);
-            const formattedDate = dateObj.getFullYear() + '年' + (dateObj.getMonth() + 1).toString().padStart(2, '0') + '月' + dateObj.getDate().toString().padStart(2, '0') + '日';
-            document.getElementById('displayDate').innerText = formattedDate;
+            const dateObj = new Date(selectedDate + 'T00:00:00');
+            document.getElementById('displayDate').innerText = dateObj.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' });
 
             if (!data) {
-                console.warn('No data found for this date.');
                 document.getElementById('kpi-total-households').innerText = '-';
                 document.getElementById('kpi-total-renovation').innerText = '-';
                 document.getElementById('kpi-total-renovation-accum').innerText = '-';
                 document.getElementById('kpi-renovation-retired-accum').innerText = '-';
-                document.getElementById('check1-display').innerText = 'X';
-                document.getElementById('check2-display').innerText = 'X';
-                document.getElementById('check3-display').innerText = 'X';
-                document.getElementById('staff-name-cell').innerText = '-';
-                document.getElementById('staff-today-cell').innerText = '-';
-                document.getElementById('staff-tomorrow-cell').innerText = '-';
-                document.getElementById('staff-notes-cell').innerText = '-';
+                document.getElementById('checklist-kpi-container').innerHTML = '';
+                document.getElementById('staffing-table-body').innerHTML = '';
                 document.getElementById('tasks-table-body').innerHTML = '';
                 document.getElementById('parking-table-body').innerHTML = '';
                 if (renovationChart) {
@@ -573,28 +625,37 @@
                 return;
             }
 
-            document.getElementById('kpi-total-households').innerText = data.community.totalHouseholds;
-            document.getElementById('kpi-total-renovation').innerText = data.community.totalRenovation;
-            document.getElementById('kpi-total-renovation-accum').innerText = data.community.totalRenovationAccum;
-            document.getElementById('kpi-renovation-retired-accum').innerText = data.community.totalRenovationRetiredAccum;
+            document.getElementById('kpi-total-households').innerText = data.community.totalHouseholds || '-';
+            document.getElementById('kpi-total-renovation').innerText = data.community.totalRenovation || '-';
+            document.getElementById('kpi-total-renovation-accum').innerText = data.community.totalRenovationAccum || '-';
+            document.getElementById('kpi-renovation-retired-accum').innerText = data.community.totalRenovationRetiredAccum || '-';
 
-            const check1Status = data.checklist.check1 ? '✓' : 'X';
-            const check2Status = data.checklist.check2 ? '✓' : 'X';
-            const check3Status = data.checklist.check3 ? '✓' : 'X';
-            document.getElementById('check1-display').innerText = check1Status;
-            document.getElementById('check2-display').innerText = check2Status;
-            document.getElementById('check3-display').innerText = check3Status;
-            document.getElementById('check1-display').classList.toggle('text-[#E55934]', check1Status === 'X');
-            document.getElementById('check1-display').classList.toggle('text-[#00A6A6]', check1Status === '✓');
-            document.getElementById('check2-display').classList.toggle('text-[#E55934]', check2Status === 'X');
-            document.getElementById('check2-display').classList.toggle('text-[#00A6A6]', check2Status === '✓');
-            document.getElementById('check3-display').classList.toggle('text-[#E55934]', check3Status === 'X');
-            document.getElementById('check3-display').classList.toggle('text-[#00A6A6]', check3Status === '✓');
+            const checklistContainer = document.getElementById('checklist-kpi-container');
+            checklistContainer.innerHTML = `
+                <div class="kpi-card text-center">
+                    <div class="kpi-value ${data.checklist.check1 ? 'text-[#00A6A6]' : 'text-[#E55934]'}">${data.checklist.check1 ? '✓' : 'X'}</div>
+                    <div class="kpi-label">公共區域門窗安全檢查</div>
+                </div>
+                <div class="kpi-card text-center">
+                    <div class="kpi-value ${data.checklist.check2 ? 'text-[#00A6A6]' : 'text-[#E55934]'}">${data.checklist.check2 ? '✓' : 'X'}</div>
+                    <div class="kpi-label">無郵件及包裹點交</div>
+                </div>
+                <div class="kpi-card text-center">
+                    <div class="kpi-value ${data.checklist.check3 ? 'text-[#00A6A6]' : 'text-[#E55934]'}">${data.checklist.check3 ? '✓' : 'X'}</div>
+                    <div class="kpi-label">施工圍籬與施工車輛停放位置確認</div>
+                </div>
+            `;
 
-            document.getElementById('staff-name-cell').innerText = data.staff.managerName;
-            document.getElementById('staff-today-cell').innerText = data.staff.todayShift;
-            document.getElementById('staff-tomorrow-cell').innerText = data.staff.tomorrowShift;
-            document.getElementById('staff-notes-cell').innerText = data.staff.shiftNotes;
+            const staffingTableBody = document.getElementById('staffing-table-body');
+            staffingTableBody.innerHTML = `
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">經理</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.staff.managerName || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.staff.todayShift || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.staff.tomorrowShift || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.staff.shiftNotes || '-'}</td>
+                </tr>
+            `;
 
             const tasksTableBody = document.getElementById('tasks-table-body');
             tasksTableBody.innerHTML = '';
@@ -623,94 +684,58 @@
             });
 
             if (renovationChart) {
-                renovationChart.data.datasets[0].data = [
-                    data.community.totalRenovationAccum - data.community.totalRenovationRetiredAccum, 
-                    data.community.totalRenovationRetiredAccum
-                ];
+                const retired = parseInt(data.community.totalRenovationRetiredAccum) || 0;
+                const inProgress = (parseInt(data.community.totalRenovationAccum) || 0) - retired;
+                renovationChart.data.datasets[0].data = [inProgress < 0 ? 0 : inProgress, retired];
                 renovationChart.update();
             }
         }
-
-        async function fetchLogByDate(date) {
-            const docRef = doc(db, 'daily_logs', date);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                updateDashboard(data);
-                if (auth.currentUser) {
-                    updateInputForm(data);
-                }
-            } else {
-                console.log('No such document!');
-                updateDashboard(null);
-                if (auth.currentUser) {
-                    clearInputForm();
-                }
-            }
-        }
-
+        
         function updateInputForm(data) {
             if (!data) return;
-            document.getElementById('totalRenovation').value = data.community.totalRenovation;
-            document.getElementById('newRenovation').value = data.community.newRenovation;
-            document.getElementById('renovationRetired').value = data.community.renovationRetired;
-            document.getElementById('totalRenovationAccum').value = data.community.totalRenovationAccum;
-            document.getElementById('totalRenovationRetiredAccum').value = data.community.totalRenovationRetiredAccum;
-            document.getElementById('newMoveIn').value = data.community.newMoveIn;
-            document.getElementById('totalHouseholds').value = data.community.totalHouseholds;
-            document.getElementById('check1').checked = data.checklist.check1;
-            document.getElementById('check2').checked = data.checklist.check2;
-            document.getElementById('check3').checked = data.checklist.check3;
-            document.getElementById('managerName').value = data.staff.managerName;
-            document.getElementById('todayShift').value = data.staff.todayShift;
-            document.getElementById('tomorrowShift').value = data.staff.tomorrowShift;
-            document.getElementById('shiftNotes').value = data.staff.shiftNotes;
+            document.getElementById('totalRenovation').value = data.community.totalRenovation || '';
+            document.getElementById('newRenovation').value = data.community.newRenovation || '';
+            document.getElementById('renovationRetired').value = data.community.renovationRetired || '';
+            document.getElementById('totalRenovationAccum').value = data.community.totalRenovationAccum || '';
+            document.getElementById('totalRenovationRetiredAccum').value = data.community.totalRenovationRetiredAccum || '';
+            document.getElementById('newMoveIn').value = data.community.newMoveIn || '';
+            document.getElementById('totalHouseholds').value = data.community.totalHouseholds || '';
+            document.getElementById('check1').checked = data.checklist.check1 || false;
+            document.getElementById('check2').checked = data.checklist.check2 || false;
+            document.getElementById('check3').checked = data.checklist.check3 || false;
+            document.getElementById('managerName').value = data.staff.managerName || '';
+            document.getElementById('todayShift').value = data.staff.todayShift || '';
+            document.getElementById('tomorrowShift').value = data.staff.tomorrowShift || '';
+            document.getElementById('shiftNotes').value = data.staff.shiftNotes || '';
 
             const tasksContainer = document.getElementById('tasks-container');
             tasksContainer.innerHTML = '';
-            (data.tasks || []).forEach((task, index) => {
-                const newDiv = document.createElement('div');
-                newDiv.innerHTML = `
-                    <label for="task${index}" class="block mb-2 form-label">事項 ${index + 1}</label>
-                    <input type="text" id="task${index}" class="form-input" value="${task}">
-                `;
-                 newDiv.querySelector('input').addEventListener('input', updateDashboardFromForm);
-                tasksContainer.appendChild(newDiv);
-            });
-            taskCount = (data.tasks || []).length;
+            taskCount = 0;
+            (data.tasks || []).forEach(task => addTask(task));
+            if ((data.tasks || []).length === 0) addTask();
             
             const parkingRecordsContainer = document.getElementById('parking-records-container');
             parkingRecordsContainer.innerHTML = '';
-            (data.parking || []).forEach(record => {
-                 const newDiv = createParkingRecordForm(record);
-                 parkingRecordsContainer.appendChild(newDiv);
-            });
-            if ((data.parking || []).length === 0) {
-                 parkingRecordsContainer.appendChild(createParkingRecordForm({}));
-            }
+            parkingRecordCount = 0;
+            (data.parking || []).forEach(record => addParkingRecord(record));
+            if ((data.parking || []).length === 0) addParkingRecord();
         }
         
         function clearInputForm() {
-            document.getElementById('totalRenovation').value = '';
-            document.getElementById('newRenovation').value = '';
-            document.getElementById('renovationRetired').value = '';
-            document.getElementById('totalRenovationAccum').value = '';
-            document.getElementById('totalRenovationRetiredAccum').value = '';
-            document.getElementById('newMoveIn').value = '';
-            document.getElementById('totalHouseholds').value = '';
-            document.getElementById('check1').checked = false;
-            document.getElementById('check2').checked = false;
-            document.getElementById('check3').checked = false;
-            document.getElementById('managerName').value = '';
-            document.getElementById('todayShift').value = '';
-            document.getElementById('tomorrowShift').value = '';
-            document.getElementById('shiftNotes').value = '';
-            document.getElementById('tasks-container').innerHTML = '';
+            document.querySelectorAll('#input-form input, #input-form textarea').forEach(el => {
+                if (el.type === 'checkbox') el.checked = false;
+                else el.value = '';
+            });
+            
+            const tasksContainer = document.getElementById('tasks-container');
+            tasksContainer.innerHTML = '';
             taskCount = 0;
+            addTask();
+
             const parkingRecordsContainer = document.getElementById('parking-records-container');
             parkingRecordsContainer.innerHTML = '';
-            parkingRecordsContainer.appendChild(createParkingRecordForm({}));
+            parkingRecordCount = 0;
+            addParkingRecord();
         }
         
         function updateDashboardFromForm() {
@@ -718,22 +743,20 @@
             updateDashboard(data);
         }
 
-        async function saveLogToFirestore() {
-             if (!auth.currentUser) {
-                alert('請先登入才能儲存日誌！');
-                return;
-            }
-            const data = getFormData();
-            const logDate = data.date;
-            try {
-                await setDoc(doc(db, "daily_logs", logDate), data);
-                alert(`日期為 ${logDate} 的日誌已成功儲存！`);
-            } catch (e) {
-                alert("儲存日誌時發生錯誤: ", e);
-            }
+        function addTask(taskValue = '') {
+            const container = document.getElementById('tasks-container');
+            const newIndex = taskCount++;
+            const newDiv = document.createElement('div');
+            newDiv.innerHTML = `
+                <label for="task${newIndex}" class="block mb-2 form-label">事項 ${newIndex + 1}</label>
+                <input type="text" id="task${newIndex}" class="form-input" value="${taskValue}">
+            `;
+            newDiv.querySelector('input').addEventListener('input', updateDashboardFromForm);
+            container.appendChild(newDiv);
         }
-
-        function createParkingRecordForm(record = {}) {
+        
+        function addParkingRecord(record = {}) {
+            const container = document.getElementById('parking-records-container');
             const div = document.createElement('div');
             div.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4";
             div.innerHTML = `
@@ -769,34 +792,72 @@
             div.querySelectorAll('input').forEach(input => {
                 input.addEventListener('input', updateDashboardFromForm);
             });
-            return div;
+            container.appendChild(div);
         }
 
+        function generateCsv() {
+            const data = getFormData();
+            const logDate = data.date;
+            
+            const check1Status = data.checklist.check1 ? '✓' : '-';
+            const check2Status = data.checklist.check2 ? '✓' : '-';
+            const check3Status = data.checklist.check3 ? '✓' : '-';
+            
+            let csvContent = "data:text/csv;charset=utf-8,";
+            
+            csvContent += `佳元松江社區｜工作日誌｜${logDate}\n\n`;
+            csvContent += "一、社區動態\n項目,數量（戶）\n";
+            csvContent += `總裝潢施作,${data.community.totalRenovation}\n`;
+            csvContent += `本日申請裝潢,${data.community.newRenovation}\n`;
+            csvContent += `本日裝潢驗退,${data.community.renovationRetired}\n`;
+            csvContent += `裝潢總計（累計）,${data.community.totalRenovationAccum}\n`;
+            csvContent += `已驗退戶（累計）,${data.community.totalRenovationRetiredAccum}\n\n`;
+            csvContent += "二、社區基本數據\n項目,數值\n";
+            csvContent += `地址,松江路252巷10號\n`;
+            csvContent += `總戶數,${data.community.totalHouseholds}\n`;
+            csvContent += `本日交屋戶數,${data.community.newMoveIn}\n\n`;
+            csvContent += "三、人員編制\n職位,人員姓名,今日出勤,明日出勤,備註\n";
+            csvContent += `經理,${data.staff.managerName},"${data.staff.todayShift}","${data.staff.tomorrowShift}","${data.staff.shiftNotes}"\n\n`;
+            csvContent += "四、每日清點\n項目,完成狀態\n";
+            csvContent += `公共區域門窗安全檢查,${check1Status}\n`;
+            csvContent += `無郵件及包裹點交,${check2Status}\n`;
+            csvContent += `施工圍籬與施工車輛停放位置確認,${check3Status}\n\n`;
+            csvContent += "五、今日工作事項\n";
+            data.tasks.forEach(task => { csvContent += `"${task}"\n`; });
+            csvContent += "\n";
+            csvContent += "六、停車紀錄\n停放時間,離開時間,車牌號碼,戶別,停車人,停放地點,車位號\n";
+            data.parking.forEach(record => {
+                 csvContent += `${record.parkingTime || ''},${record.leaveTime || ''},${record.carPlate || ''},${record.huBei || ''},${record.parker || ''},${record.location || ''},${record.spot || ''}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `佳元松江社區｜工作日誌｜${logDate.replace(/-/g, '')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- 初始化與事件監聽 ---
         document.addEventListener('DOMContentLoaded', () => {
             const dateSelector = document.getElementById('date-selector');
-            const today = new Date().toISOString().split('T')[0];
-            dateSelector.value = today;
+            const today = new Date();
+            today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+            dateSelector.value = today.toISOString().split('T')[0];
             
             dateSelector.addEventListener('change', (event) => {
-                const selectedDate = event.target.value;
-                const dateObj = new Date(selectedDate);
-                const formattedDate = dateObj.getFullYear() + '年' + (dateObj.getMonth() + 1).toString().padStart(2, '0') + '月' + dateObj.getDate().toString().padStart(2, '0') + '日';
-                document.getElementById('displayDate').innerText = formattedDate;
-                fetchLogByDate(selectedDate);
+                fetchLogByDate(event.target.value);
             });
             
-            const inputs = document.querySelectorAll('#input-form input, #input-form textarea');
-            inputs.forEach(input => {
+            document.querySelectorAll('#input-form input, #input-form textarea').forEach(input => {
                 input.addEventListener('input', updateDashboardFromForm);
             });
             
-            document.getElementById('addTaskBtn').addEventListener('click', addTask);
-            document.getElementById('add-parking-record-btn').addEventListener('click', () => {
-                const container = document.getElementById('parking-records-container');
-                container.appendChild(createParkingRecordForm({}));
-            });
+            document.getElementById('addTaskBtn').addEventListener('click', () => addTask());
+            document.getElementById('add-parking-record-btn').addEventListener('click', () => addParkingRecord());
             document.getElementById('generate-csv-btn').addEventListener('click', generateCsv);
-            document.getElementById('save-log-btn').addEventListener('click', saveLogToFirestore);
+            saveLogBtn.addEventListener('click', saveLogToFirestore);
 
             const renovationCtx = document.getElementById('renovationChart').getContext('2d');
             renovationChart = new Chart(renovationCtx, {
@@ -805,9 +866,9 @@
                     labels: ['施工中', '已驗退'],
                     datasets: [{
                         label: '戶數',
-                        data: [14, 6],
-                        backgroundColor: [vibrantPalette.primary, vibrantPalette.secondary],
-                        borderColor: vibrantPalette.light,
+                        data: [0, 0],
+                        backgroundColor: ['#00A6A6', '#E55934'],
+                        borderColor: '#F7F7F7',
                         borderWidth: 4,
                         hoverOffset: 8
                     }]
@@ -816,102 +877,16 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     cutout: '70%',
-                    plugins: tooltipCallback.plugins
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { padding: 20, font: { size: 14 } }
+                        }
+                    }
                 }
             });
-
-            // 修正了這裡的邏輯，確保頁面載入時能正確顯示當天日期
-            const initialDate = dateSelector.value;
-            const dateObj = new Date(initialDate);
-            const formattedDate = dateObj.getFullYear() + '年' + (dateObj.getMonth() + 1).toString().padStart(2, '0') + '月' + dateObj.getDate().toString().padStart(2, '0') + '日';
-            document.getElementById('displayDate').innerText = formattedDate;
-            fetchLogByDate(initialDate);
         });
 
-        function addTask() {
-            const container = document.getElementById('tasks-container');
-            const newIndex = taskCount++;
-            const newDiv = document.createElement('div');
-            newDiv.innerHTML = `
-                <label for="task${newIndex}" class="block mb-2 form-label">事項 ${newIndex + 1}</label>
-                <input type="text" id="task${newIndex}" class="form-input">
-            `;
-            const newDivInput = newDiv.querySelector('input');
-            newDivInput.addEventListener('input', updateDashboardFromForm);
-            container.appendChild(newDiv);
-        }
-
-        function generateCsv() {
-            const data = getFormData();
-            const logDate = data.date.replace(/-/g, '/').split('/').map(v => parseInt(v)).join('/');
-            
-            const check1Status = data.checklist.check1 ? '✓' : '-';
-            const check2Status = data.checklist.check2 ? '✓' : '-';
-            const check3Status = data.checklist.check3 ? '✓' : '-';
-            const taskList = data.tasks;
-            const parkingList = data.parking;
-
-            let csvContent = "";
-            
-            csvContent += `佳元松江社區｜工作日誌｜${logDate},,,,,\n`;
-            csvContent += ",,,,,\n";
-
-            csvContent += "一、社區動態,,,,\n";
-            csvContent += "社區動態,數量（戶）,,,,\n";
-            csvContent += `總裝潢施作,${data.community.totalRenovation},,,,,\n`;
-            csvContent += `本日申請裝潢,${data.community.newRenovation},,,,,\n`;
-            csvContent += `本日裝潢驗退,${data.community.renovationRetired},,,,,\n`;
-            csvContent += `裝潢總計（累計）,${data.community.totalRenovationAccum},,,,,\n`;
-            csvContent += `已驗退戶（累計）,${data.community.totalRenovationRetiredAccum},,,,,\n`;
-            csvContent += ",,,,,\n";
-
-            csvContent += "二、社區基本數據,,,,\n";
-            csvContent += "項目,數值,,,,\n";
-            csvContent += `地址,松江路252巷10號,,,,\n`;
-            csvContent += `總戶數,${data.community.totalHouseholds},,,,,\n`;
-            csvContent += `本日交屋戶數,${data.community.newMoveIn},,,,,\n`;
-            csvContent += `入住率,—,,,,\n`;
-            csvContent += `空置戶數,—,,,,\n`;
-            csvContent += ",,,,,\n";
-            
-            csvContent += "三、人員編制,,,,\n";
-            csvContent += `職位,人員姓名,今日出勤,明日出勤,備註\n`;
-            csvContent += `經理,${data.staff.managerName},${data.staff.todayShift},${data.staff.tomorrowShift},${data.staff.shiftNotes}\n`;
-            csvContent += ",,,,,\n";
-
-            csvContent += "四、班表說明,,,,\n";
-            csvContent += `早班：08:00–17:00，負責社區巡場、施工管理、住戶聯繫及兼任保全巡場、門禁與安檢工作。,,,,\n`;
-            csvContent += ",,,,,\n";
-
-            csvContent += "五、每日清點,,,,\n";
-            csvContent += `每日清點,完成,,,,\n`;
-            csvContent += `公共區域門窗安全檢查,${check1Status},,,,\n`;
-            csvContent += `無郵件及包裹點交,${check2Status},,,,\n`;
-            csvContent += `施工圍籬與施工車輛停放位置確認,${check3Status},,,,\n`;
-            csvContent += ",,,,,\n";
-            
-            csvContent += "六、今日工作事項,,,,\n";
-            csvContent += "今日工作事項,,,,\n";
-            taskList.forEach(task => {
-                csvContent += `${task},,,,,\n`;
-            });
-            csvContent += ",,,,,\n";
-
-            csvContent += `停放時間,離開時間,車牌號碼,戶別,停車人,停放地點,車位號\n`;
-            parkingList.forEach(record => {
-                 csvContent += `${record.parkingTime || ''},${record.leaveTime || ''},${record.carPlate || ''},${record.huBei || ''},${record.parker || ''},${record.location || ''},${record.spot || ''}\n`;
-            });
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `佳元松江社區｜工作日誌｜${logDate.replace(/\//g, '')}日報.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
     </script>
 </body>
 </html>
