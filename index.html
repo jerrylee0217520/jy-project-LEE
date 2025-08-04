@@ -194,7 +194,30 @@
                 <div class="form-section"><h2 class="text-2xl font-semibold mb-4 text-[#E55934]">停車紀錄</h2><div id="parking-records-container" class="space-y-4"></div><button id="add-parking-record-btn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增停車紀錄</button></div>
                 <div class="form-section"><h2 class="text-2xl font-semibold mb-4 text-[#E55934]">每日清點</h2><div class="space-y-2"><div class="flex items-center"><input type="checkbox" id="check1" checked class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded"><label for="check1" class="ml-2 block text-sm text-gray-900">公共區域門窗安全檢查</label></div><div class="flex items-center"><input type="checkbox" id="check2" class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded"><label for="check2" class="ml-2 block text-sm text-gray-900">無郵件及包裹點交</label></div><div class="flex items-center"><input type="checkbox" id="check3" checked class="h-4 w-4 text-[#00A6A6] focus:ring-[#00A6A6] border-gray-300 rounded"><label for="check3" class="ml-2 block text-sm text-gray-900">施工圍籬與施工車輛停放位置確認</label></div></div></div>
                 <div class="form-section"><h2 class="text-2xl font-semibold mb-4 text-[#E55934]">今日工作事項</h2><div id="tasks-container" class="space-y-4"></div><button id="addTaskBtn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增工作事項</button></div>
-                <div class="form-section"><h2 class="text-2xl font-semibold mb-4 text-[#E55934]">人員編制</h2><div class="space-y-2"><div><label for="managerName" class="block mb-2 form-label">經理姓名</label><input type="text" id="managerName" class="form-input" value="李俊煌"></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label for="todayShift" class="block mb-2 form-label">今日出勤</label><input type="text" id="todayShift" class="form-input" value="早班 08:00–17:00"></div><div><label for="tomorrowShift" class="block mb-2 form-label">明日出勤</label><input type="text" id="tomorrowShift" class="form-input" value="休假"></div></div><div><label for="shiftNotes" class="block mb-2 form-label">備註</label><textarea id="shiftNotes" class="form-input" rows="2">兼任保全巡場、門禁與安檢工作</textarea></div></div></div>
+                
+                <!-- *** 修正: 調整人員編制區塊的版面配置 *** -->
+                <div class="form-section">
+                    <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">人員編制</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="managerName" class="block mb-2 form-label">經理姓名</label>
+                            <input type="text" id="managerName" class="form-input" value="李俊煌">
+                        </div>
+                        <div>
+                            <label for="todayShift" class="block mb-2 form-label">今日出勤</label>
+                            <input type="text" id="todayShift" class="form-input" value="早班 08:00–17:00">
+                        </div>
+                        <div>
+                            <label for="tomorrowShift" class="block mb-2 form-label">明日出勤</label>
+                            <input type="text" id="tomorrowShift" class="form-input" value="休假">
+                        </div>
+                        <div>
+                            <label for="shiftNotes" class="block mb-2 form-label">備註</label>
+                            <textarea id="shiftNotes" class="form-input" rows="4">兼任保全巡場、門禁與安檢工作</textarea>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="text-center space-x-4 mt-6"><button id="save-log-btn" class="btn-primary">儲存日誌</button><button id="generate-csv-btn" class="btn-primary">產生 CSV</button></div>
             </main>
         </section>
