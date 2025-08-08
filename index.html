@@ -232,7 +232,7 @@
                 <div class="kpi-card fade-in" style="animation-delay: 0.3s;"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div><div id="kpi-renovation-retired-accum" class="kpi-value">-</div><div class="kpi-label">已驗退戶(累計)</div></div>
             </div>
         </section>
-        <section id="parking-display" class="mb-16"><div class="card max-w-5xl mx-auto p-4 sm:p-6"><h2 class="section-title text-3xl">停車紀錄</h2><p class="section-subtitle">以下為今日社區停車紀錄清單。</p><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放時間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">離開時間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車牌號碼</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">戶別</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停車人</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放地點</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車位號</th></tr></thead><tbody id="parking-table-body"></tbody></table></div></div></section>
+        <section id="parking-display" class="mb-16"><div class="card max-w-5xl mx-auto p-4 sm:p-6"><h2 class="section-title text-3xl">停車紀錄</h2><p class="section-subtitle">以下為今日社區停車紀錄清單。</p><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車牌號碼</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">戶別</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">入場時間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">出場時間</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放時長(分鐘)</th></tr></thead><tbody id="parking-table-body"></tbody></table></div></div></section>
         <section id="renovation-progress-display" class="mb-16"><div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-5xl mx-auto"><div class="card md:col-span-1 p-4 sm:p-6"><h2 class="section-title text-3xl">本日裝潢動態</h2><p class="section-subtitle">此圓環圖顯示了已申請裝潢的戶別中，正在施工中與已完工驗退的比例。</p><div class="chart-container"><canvas id="renovationChart"></canvas></div></div><div class="card md:col-span-1 p-4 sm:p-6"><h2 class="section-title text-3xl">本日人員編制</h2><p class="section-subtitle">今日值勤人員的詳細資訊與明日班表。</p><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">職位</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">人員姓名</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">今日出勤</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">明日出勤</th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">備註</th></tr></thead><tbody id="staffing-table-body"></tbody></table></div></div></div></section>
         <section id="daily-checklist-display" class="mb-16"><div class="card max-w-5xl mx-auto p-4 sm:p-6"><h2 class="section-title text-3xl">每日清點</h2><p class="section-subtitle">以下為今日工作日誌中的清點項目與其完成狀態。</p><div id="checklist-kpi-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div></div></section>
         <section id="daily-tasks-display" class="mb-16"><div class="card max-w-5xl mx-auto p-4 sm:p-6"><h2 class="section-title text-3xl">今日工作事項</h2><p class="section-subtitle">以下為今日工作日誌的詳細事項清單。</p><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200"><thead><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">事項</th></tr></thead><tbody id="tasks-table-body"></tbody></table></div></div></section>
@@ -269,6 +269,7 @@
             user: null,
             renovationChart: null,
             taskCount: 0,
+            parkingRecordCount: 0, // 【停車場修改】: 新增計數器
             elements: {},
 
             init() {
@@ -351,24 +352,15 @@
 
             handleAuthStateChange(user) {
                 this.updateAuthUI(user);
-                // 【日期修正】: 一旦使用者狀態確定(無論是訪客或管理員)，就啟用日期導航功能。
                 this.elements.dateSelector.disabled = false;
                 this.elements.prevDayBtn.disabled = false;
-                // 注意: nextDayBtn 的狀態由 updateDateNavButtonsState 動態管理，此處不需啟用。
                 this.fetchLogByDate(this.elements.dateSelector.value);
             },
 
-            // 【日期修正】: 此函式用於動態管理日期導航按鈕的狀態
             updateDateNavButtonsState() {
                 const today = new Date();
-                // 將今天的日期物件標準化，移除時間部分，以便精確比較
                 today.setHours(0, 0, 0, 0); 
-                
-                // 解析選擇器中的日期字串，並確保它被視為本地時區的午夜
                 const selectedDate = new Date(this.elements.dateSelector.value + 'T00:00:00');
-                
-                // 如果選擇的日期大於或等於今天，就禁用「下一天」按鈕
-                // 這樣可以防止用戶跳轉到未來的日期
                 this.elements.nextDayBtn.disabled = selectedDate >= today;
             },
 
@@ -384,7 +376,6 @@
             updateAuthUI(user) {
                 if (user && !user.isAnonymous) {
                     this.elements.authButton.innerText = '登出';
-                    // 【安全性修正】: 改為使用 UID 進行驗證
                     if (ADMIN_UIDS.includes(user.uid)) {
                         this.elements.userStatus.innerText = `管理員模式：${user.displayName}`;
                         this.elements.inputForm.classList.remove('hidden');
@@ -401,7 +392,6 @@
 
             async saveLogToFirestore() {
                 if (!this.user || this.user.isAnonymous) return this.showToast('請先登入才能儲存！', 'error');
-                // 【安全性修正】: 改為使用 UID 進行驗證
                 if (!ADMIN_UIDS.includes(this.user.uid)) return this.showToast('您沒有權限儲存！', 'error');
                 
                 const data = this.getFormData();
@@ -425,7 +415,6 @@
                 try {
                     const docRef = doc(this.db, 'daily_logs', date);
                     const docSnap = await getDoc(docRef);
-
                     const isUserAdmin = this.user && ADMIN_UIDS.includes(this.user.uid);
 
                     if (docSnap.exists()) {
@@ -443,7 +432,6 @@
                     this.showToast(message, 'error');
                     this.updateDashboard(null);
                 } finally {
-                    // 【日期修正】: 不論讀取成功或失敗，每次日期變更後都呼叫此函式來更新按鈕狀態。
                     this.updateDateNavButtonsState();
                 }
             },
@@ -465,6 +453,8 @@
                 const check2 = document.getElementById('check2').checked;
                 const check3 = document.getElementById('check3').checked;
                 const tasks = Array.from(document.querySelectorAll('#tasks-container input')).map(el => el.value).filter(val => val.trim() !== '');
+                
+                // 【停車場修改】: 更新資料收集邏輯
                 const parkingRecords = [];
                 document.querySelectorAll('#parking-records-container > div').forEach(div => {
                     const record = {};
@@ -505,9 +495,10 @@
                 tasksTableBody.innerHTML = '';
                 (data.tasks || []).forEach(task => { if (task) tasksTableBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td></tr>`); });
 
+                // 【停車場修改】: 更新表格顯示邏輯
                 const parkingTableBody = document.getElementById('parking-table-body');
                 parkingTableBody.innerHTML = '';
-                (data.parking || []).forEach(r => parkingTableBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.parkingTime||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.leaveTime||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.parker||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.location||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.spot||'-'}</td></tr>`));
+                (data.parking || []).forEach(r => parkingTableBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration||'-'}</td></tr>`));
 
                 if (this.renovationChart) {
                     const retired = parseInt(data.community.totalRenovationRetiredAccum) || 0;
@@ -540,8 +531,10 @@
                 (data.tasks || []).forEach(task => this.addTask(task));
                 if ((data.tasks || []).length === 0) this.addTask();
                 
+                // 【停車場修改】: 更新表單填入邏輯
                 const parkingRecordsContainer = document.getElementById('parking-records-container');
                 parkingRecordsContainer.innerHTML = '';
+                this.parkingRecordCount = 0;
                 (data.parking || []).forEach(record => this.addParkingRecord(record));
                 if ((data.parking || []).length === 0) this.addParkingRecord();
             },
@@ -554,6 +547,7 @@
                 this.addTask();
                 const parkingRecordsContainer = document.getElementById('parking-records-container');
                 parkingRecordsContainer.innerHTML = '';
+                this.parkingRecordCount = 0;
                 this.addParkingRecord();
             },
             
@@ -568,37 +562,60 @@
                 container.appendChild(newDiv);
             },
             
+            // 【停車場修改】: 全面更新此函式以符合新格式
             addParkingRecord(record = {}) {
                 const container = document.getElementById('parking-records-container');
+                const index = this.parkingRecordCount++;
                 const div = document.createElement('div');
                 div.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4";
-                div.innerHTML = `<div><label class="block mb-2 form-label">停放時間</label><input type="time" class="form-input parking-input" data-field="parkingTime" value="${record.parkingTime || ''}"></div><div><label class="block mb-2 form-label">離開時間</label><input type="time" class="form-input parking-input" data-field="leaveTime" value="${record.leaveTime || ''}"></div><div><label class="block mb-2 form-label">車牌號碼</label><input type="text" class="form-input parking-input" data-field="carPlate" value="${record.carPlate || ''}"></div><div><label class="block mb-2 form-label">戶別</label><input type="text" class="form-input parking-input" data-field="huBei" value="${record.huBei || ''}"></div><div><label class="block mb-2 form-label">停車人</label><input type="text" class="form-input parking-input" data-field="parker" value="${record.parker || ''}"></div><div><label class="block mb-2 form-label">停放地點</label><input type="text" class="form-input parking-input" data-field="location" value="${record.location || ''}"></div><div><label class="block mb-2 form-label">車位號</label><input type="text" class="form-input parking-input" data-field="spot" value="${record.spot || ''}"></div>`;
-                div.querySelectorAll('input').forEach(input => { input.addEventListener('input', () => this.updateDashboardFromForm()); });
+                div.innerHTML = `
+                    <div><label class="block mb-2 form-label">車牌號碼</label><input type="text" class="form-input parking-input" data-field="carPlate" value="${record.carPlate || ''}"></div>
+                    <div><label class="block mb-2 form-label">戶別</label><input type="text" class="form-input parking-input" data-field="huBei" value="${record.huBei || ''}"></div>
+                    <div><label class="block mb-2 form-label">入場時間</label><input type="time" class="form-input parking-input" data-field="entryTime" value="${record.entryTime || ''}"></div>
+                    <div><label class="block mb-2 form-label">出場時間</label><input type="time" class="form-input parking-input" data-field="exitTime" value="${record.exitTime || ''}"></div>
+                    <div><label class="block mb-2 form-label">停放時長(分鐘)</label><input type="number" class="form-input parking-input bg-gray-200" data-field="duration" value="${record.duration || ''}" readonly></div>
+                `;
+                
+                const entryTimeInput = div.querySelector('[data-field="entryTime"]');
+                const exitTimeInput = div.querySelector('[data-field="exitTime"]');
+                const durationInput = div.querySelector('[data-field="duration"]');
+
+                const calculateDuration = () => {
+                    if (entryTimeInput.value && exitTimeInput.value) {
+                        const entry = new Date(`1970-01-01T${entryTimeInput.value}:00`);
+                        const exit = new Date(`1970-01-01T${exitTimeInput.value}:00`);
+                        let diff = (exit.getTime() - entry.getTime()) / 60000; // difference in minutes
+                        if (diff < 0) diff += 24 * 60; // handle overnight parking
+                        durationInput.value = Math.round(diff);
+                    } else {
+                        durationInput.value = '';
+                    }
+                    this.updateDashboardFromForm();
+                };
+
+                entryTimeInput.addEventListener('change', calculateDuration);
+                exitTimeInput.addEventListener('change', calculateDuration);
+                
+                div.querySelectorAll('input').forEach(input => { 
+                    if(input.dataset.field !== 'entryTime' && input.dataset.field !== 'exitTime') {
+                        input.addEventListener('input', () => this.updateDashboardFromForm());
+                    }
+                });
                 container.appendChild(div);
             },
             
-            // 【日期修正】: 重寫此函式以避免時區問題
             changeDate(offset) {
-                // 從輸入框取得 YYYY-MM-DD 格式的日期字串
                 const dateString = this.elements.dateSelector.value;
-                // 將其轉換為本地時區的午夜時間點
                 const currentDate = new Date(dateString + 'T00:00:00');
-                
-                // 安全地進行日期的加減
                 currentDate.setDate(currentDate.getDate() + offset);
-
-                // 使用手動格式化，確保輸出為 YYYY-MM-DD 格式，避免 toISOString() 的時區轉換問題
                 const year = currentDate.getFullYear();
-                const month = String(currentDate.getMonth() + 1).padStart(2, '0'); // 月份是 0-indexed
+                const month = String(currentDate.getMonth() + 1).padStart(2, '0');
                 const day = String(currentDate.getDate()).padStart(2, '0');
-                
-                // 將格式化後的本地日期字串設定回輸入框
                 this.elements.dateSelector.value = `${year}-${month}-${day}`;
-                
-                // 手動觸發 change 事件，以載入新日期的日誌
                 this.elements.dateSelector.dispatchEvent(new Event('change'));
             },
 
+            // 【停車場修改】: 更新 CSV 產生邏輯
             generateCsv() {
                 const data = this.getFormData();
                 const logDate = data.date;
@@ -618,9 +635,9 @@
                 csvContent += "五、今日工作事項\n";
                 data.tasks.forEach(task => { csvContent += `"${task}"\n`; });
                 csvContent += "\n";
-                csvContent += "六、停車紀錄\n停放時間,離開時間,車牌號碼,戶別,停車人,停放地點,車位號\n";
+                csvContent += "六、停車紀錄\n車牌號碼,戶別,入場時間,出場時間,停放時長(分鐘)\n";
                 data.parking.forEach(record => {
-                     csvContent += `${record.parkingTime || ''},${record.leaveTime || ''},${record.carPlate || ''},${record.huBei || ''},${record.parker || ''},${record.location || ''},${record.spot || ''}\n`;
+                     csvContent += `${record.carPlate || ''},${record.huBei || ''},${record.entryTime || ''},${record.exitTime || ''},${record.duration || ''}\n`;
                 });
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement('a');
