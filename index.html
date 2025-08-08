@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- 【GSheets 修改】: 引入 Google API Client Library -->
+    <script async defer src="https://apis.google.com/js/api.js"></script>
     <style>
         /* --- 全局設計系統 --- */
         :root {
@@ -218,7 +220,20 @@
                         <div><label for="shiftNotes" class="block mb-2 form-label">備註</label><textarea id="shiftNotes" class="form-input" rows="4">兼任保全巡場、門禁與安檢工作</textarea></div>
                     </div>
                 </div>
-                <div class="text-center space-x-4 mt-6"><button id="save-log-btn" class="btn-primary">儲存日誌</button><button id="generate-csv-btn" class="btn-primary">產生 CSV</button></div>
+                <!-- 【GSheets 修改】: 新增 Google Sheet ID 輸入欄位 -->
+                <div class="form-section">
+                    <h2 class="text-2xl font-semibold mb-4 text-[#00A6A6]">Google Sheets 匯出設定</h2>
+                    <div>
+                        <label for="spreadsheet-id" class="block mb-2 form-label">目標 Google Sheet ID</label>
+                        <input type="text" id="spreadsheet-id" class="form-input" placeholder="請貼上您的 Google Sheet ID" value="1DwcrgFncaocK3fil-lT-j5InTV7NwlBjEZjDF_OuhFU">
+                    </div>
+                </div>
+                <div class="text-center space-x-4 mt-6">
+                    <button id="save-log-btn" class="btn-primary">儲存日誌</button>
+                    <!-- 【GSheets 修改】: 修改按鈕功能 -->
+                    <button id="export-to-sheets-btn" class="btn-primary">匯出至 Google Sheets</button>
+                    <button id="generate-csv-btn" class="btn-primary">產生 CSV (備用)</button>
+                </div>
             </main>
         </section>
 
@@ -258,18 +273,26 @@
             appId: "1:640527461851:web:eed9f82d698275371fcbfe",
         };
         
-        // 【安全性修正】: 從比對 Email 改為比對 UID (使用者 ID)
-        // UID 是獨一無二且無法變更的，比 Email 更安全。
         const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1"];
+        
+        // --- 【GSheets 修改】: 已將您提供的金鑰填入 ---
+        const GOOGLE_API_KEY = "AIzaSyA27Zh9_KONsadoqd5RWbeFQZvYwFs8_cg";
+        const GOOGLE_CLIENT_ID = "948134512517-9thbq35n96ljei8hqks1ngn1mjqquopm.apps.googleusercontent.com";
+        const DISCOVERY_DOC = "https://sheets.googleapis.com/$discovery/rest?version=v4";
+        const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 
-        // --- 應用程式核心物件 (全新重構) ---
+
+        // --- 應用程式核心物件 ---
         const App = {
             db: null,
             auth: null,
             user: null,
+            gapiInited: false, // GAPI client 狀態
+            gisInited: false,  // GIS Auth 狀態
+            tokenClient: null, // GIS Auth client
             renovationChart: null,
             taskCount: 0,
-            parkingRecordCount: 0, // 【停車場修改】: 新增計數器
+            parkingRecordCount: 0,
             elements: {},
 
             init() {
@@ -282,6 +305,27 @@
                 this.initDateSelector();
                 this.initChart();
                 this.listenForAuthStateChanges();
+                
+                // 【GSheets 修改】: 在頁面載入時，就載入 Google API client
+                window.gapiLoaded = () => {
+                    gapi.load('client', this.initializeGapiClient.bind(this));
+                };
+                (document.head || document.body).appendChild(
+                    Object.assign(document.createElement('script'), {
+                        src: 'https://apis.google.com/js/api.js?onload=gapiLoaded',
+                        async: true,
+                        defer: true,
+                    })
+                );
+            },
+            
+            // --- 【GSheets 修改】: 新增 GAPI 初始化相關函式 ---
+            async initializeGapiClient() {
+                await gapi.client.init({
+                    apiKey: GOOGLE_API_KEY,
+                    discoveryDocs: [DISCOVERY_DOC],
+                });
+                this.gapiInited = true;
             },
 
             cacheDOMElements() {
@@ -295,6 +339,8 @@
                     displayDate: document.getElementById('displayDate'),
                     prevDayBtn: document.getElementById('prev-day-btn'),
                     nextDayBtn: document.getElementById('next-day-btn'),
+                    spreadsheetIdInput: document.getElementById('spreadsheet-id'), // GSheets
+                    exportToSheetsBtn: document.getElementById('export-to-sheets-btn'), // GSheets
                 };
             },
 
@@ -308,11 +354,11 @@
                 });
 
                 this.elements.dateSelector.addEventListener('change', (event) => this.fetchLogByDate(event.target.value));
-                
                 this.elements.prevDayBtn.addEventListener('click', () => this.changeDate(-1));
                 this.elements.nextDayBtn.addEventListener('click', () => this.changeDate(1));
-
                 this.elements.saveLogBtn.addEventListener('click', () => this.saveLogToFirestore());
+                this.elements.exportToSheetsBtn.addEventListener('click', () => this.exportToSheets()); // GSheets
+                
                 document.getElementById('generate-csv-btn').addEventListener('click', () => this.generateCsv());
                 document.getElementById('addTaskBtn').addEventListener('click', () => this.addTask());
                 document.getElementById('add-parking-record-btn').addEventListener('click', () => this.addParkingRecord());
@@ -391,20 +437,16 @@
             },
 
             async saveLogToFirestore() {
-                if (!this.user || this.user.isAnonymous) return this.showToast('請先登入才能儲存！', 'error');
-                if (!ADMIN_UIDS.includes(this.user.uid)) return this.showToast('您沒有權限儲存！', 'error');
-                
+                if (!this.user || !ADMIN_UIDS.includes(this.user.uid)) return this.showToast('您沒有權限儲存！', 'error');
                 const data = this.getFormData();
                 if (!data.date) return this.showToast('請選擇日期！', 'error');
-                
                 this.elements.saveLogBtn.disabled = true;
                 try {
                     await setDoc(doc(this.db, "daily_logs", data.date), data);
                     this.showToast(`日誌 ${data.date} 已成功儲存！`);
                 } catch (e) {
                     console.error("儲存錯誤:", e);
-                    const message = e.code === 'permission-denied' ? "權限不足，請檢查Firebase安全規則" : `儲存失敗: ${e.message}`;
-                    this.showToast(message, 'error');
+                    this.showToast(e.code === 'permission-denied' ? "權限不足" : `儲存失敗: ${e.message}`, 'error');
                 } finally {
                     this.elements.saveLogBtn.disabled = false;
                 }
@@ -428,14 +470,13 @@
                     }
                 } catch (error) {
                     console.error("讀取錯誤:", error);
-                    const message = error.code === 'permission-denied' ? "權限不足，請檢查Firebase安全規則" : "讀取資料失敗！";
-                    this.showToast(message, 'error');
+                    this.showToast(error.code === 'permission-denied' ? "權限不足" : "讀取資料失敗！", 'error');
                     this.updateDashboard(null);
                 } finally {
                     this.updateDateNavButtonsState();
                 }
             },
-
+            
             getFormData() {
                 const date = this.elements.dateSelector.value;
                 const totalRenovation = document.getElementById('totalRenovation').value;
@@ -453,8 +494,6 @@
                 const check2 = document.getElementById('check2').checked;
                 const check3 = document.getElementById('check3').checked;
                 const tasks = Array.from(document.querySelectorAll('#tasks-container input')).map(el => el.value).filter(val => val.trim() !== '');
-                
-                // 【停車場修改】: 更新資料收集邏輯
                 const parkingRecords = [];
                 document.querySelectorAll('#parking-records-container > div').forEach(div => {
                     const record = {};
@@ -495,7 +534,6 @@
                 tasksTableBody.innerHTML = '';
                 (data.tasks || []).forEach(task => { if (task) tasksTableBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td></tr>`); });
 
-                // 【停車場修改】: 更新表格顯示邏輯
                 const parkingTableBody = document.getElementById('parking-table-body');
                 parkingTableBody.innerHTML = '';
                 (data.parking || []).forEach(r => parkingTableBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime||'-'}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration||'-'}</td></tr>`));
@@ -531,7 +569,6 @@
                 (data.tasks || []).forEach(task => this.addTask(task));
                 if ((data.tasks || []).length === 0) this.addTask();
                 
-                // 【停車場修改】: 更新表單填入邏輯
                 const parkingRecordsContainer = document.getElementById('parking-records-container');
                 parkingRecordsContainer.innerHTML = '';
                 this.parkingRecordCount = 0;
@@ -562,7 +599,6 @@
                 container.appendChild(newDiv);
             },
             
-            // 【停車場修改】: 全面更新此函式以符合新格式
             addParkingRecord(record = {}) {
                 const container = document.getElementById('parking-records-container');
                 const index = this.parkingRecordCount++;
@@ -584,8 +620,8 @@
                     if (entryTimeInput.value && exitTimeInput.value) {
                         const entry = new Date(`1970-01-01T${entryTimeInput.value}:00`);
                         const exit = new Date(`1970-01-01T${exitTimeInput.value}:00`);
-                        let diff = (exit.getTime() - entry.getTime()) / 60000; // difference in minutes
-                        if (diff < 0) diff += 24 * 60; // handle overnight parking
+                        let diff = (exit.getTime() - entry.getTime()) / 60000;
+                        if (diff < 0) diff += 24 * 60;
                         durationInput.value = Math.round(diff);
                     } else {
                         durationInput.value = '';
@@ -615,7 +651,6 @@
                 this.elements.dateSelector.dispatchEvent(new Event('change'));
             },
 
-            // 【停車場修改】: 更新 CSV 產生邏輯
             generateCsv() {
                 const data = this.getFormData();
                 const logDate = data.date;
@@ -646,6 +681,78 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+            },
+
+            // --- 【GSheets 修改】: 新增的核心函式 ---
+            async exportToSheets() {
+                if (!this.gapiInited) {
+                    this.showToast('Google API 客戶端尚未初始化，請稍後再試。', 'error');
+                    return;
+                }
+
+                const spreadsheetId = this.elements.spreadsheetIdInput.value;
+                if (!spreadsheetId) {
+                    this.showToast('請先輸入目標 Google Sheet 的 ID！', 'error');
+                    return;
+                }
+                
+                // 觸發 OAuth 授權流程
+                this.tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: SCOPES,
+                    callback: async (resp) => {
+                        if (resp.error !== undefined) {
+                            throw (resp);
+                        }
+                        await this.appendDataToSheet(spreadsheetId);
+                    },
+                });
+
+                if (gapi.client.getToken() === null) {
+                    // 如果使用者尚未授權，請求授權
+                    this.tokenClient.requestAccessToken({prompt: 'consent'});
+                } else {
+                    // 如果已授權，直接寫入資料
+                    await this.appendDataToSheet(spreadsheetId);
+                }
+            },
+
+            async appendDataToSheet(spreadsheetId) {
+                const data = this.getFormData();
+                const logDate = data.date;
+
+                // 準備要寫入的資料列
+                const values = [
+                    [
+                        logDate,
+                        data.community.totalRenovation,
+                        data.community.newRenovation,
+                        data.community.renovationRetired,
+                        data.community.totalRenovationAccum,
+                        data.community.totalRenovationRetiredAccum,
+                        data.community.newMoveIn,
+                        data.staff.managerName,
+                        data.staff.todayShift,
+                        data.staff.tomorrowShift,
+                        data.staff.shiftNotes,
+                        data.tasks.join('; '), // 將多個任務合併成一格
+                        JSON.stringify(data.parking) // 將停車紀錄打包成 JSON 字串
+                    ]
+                ];
+
+                try {
+                    const response = await gapi.client.sheets.spreadsheets.values.append({
+                        spreadsheetId: spreadsheetId,
+                        range: '工作表1!A1', // 從 A1 開始附加，會自動找到最後一列
+                        valueInputOption: 'USER_ENTERED',
+                        resource: { values: values },
+                    });
+                    console.log(response);
+                    this.showToast(`成功將 ${logDate} 的日誌匯出至 Google Sheets！`);
+                } catch (err) {
+                    console.error('寫入 Google Sheets 失敗:', err);
+                    this.showToast(`匯出失敗: ${err.result.error.message}`, 'error');
+                }
             }
         };
 
