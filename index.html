@@ -286,9 +286,9 @@
             db: null,
             auth: null,
             user: null,
-            gapiInited: false, // GAPI client 狀態
-            gisInited: false,  // GIS Auth 狀態
-            tokenClient: null, // GIS Auth client
+            gapiInited: false,
+            gisInited: false,
+            tokenClient: null,
             renovationChart: null,
             taskCount: 0,
             parkingRecordCount: 0,
@@ -306,7 +306,6 @@
                 this.listenForAuthStateChanges();
             },
             
-            // --- 【GSheets 修正】: 分開處理 GAPI 和 GIS 的初始化 ---
             initializeGapiClient() {
                 gapi.client.init({
                     apiKey: GOOGLE_API_KEY,
@@ -690,7 +689,6 @@
                 document.body.removeChild(link);
             },
 
-            // --- 【GSheets 修正】: 更新的核心函式 ---
             exportToSheets() {
                 const spreadsheetId = this.elements.spreadsheetIdInput.value;
                 if (!spreadsheetId) {
@@ -699,8 +697,6 @@
                 if (!this.gapiInited || !this.gisInited) {
                     return this.showToast('Google API 尚未準備就緒，請稍後再試。', 'error');
                 }
-
-                // 每次都請求授權，GIS 會自動處理是否需要跳出視窗
                 this.tokenClient.requestAccessToken({ prompt: '' });
             },
 
