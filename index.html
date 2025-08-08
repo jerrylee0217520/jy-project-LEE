@@ -168,6 +168,14 @@
         .toast-success { background-image: linear-gradient(45deg, var(--primary-color) 0%, #00c4c4 100%); }
         .toast-error { background-image: linear-gradient(45deg, var(--secondary-color) 0%, #ff7e61 100%); }
     </style>
+
+<!-- EARLY define fixed SHEET_ID/RANGE -->
+<script>
+  window.SHEET_ID = "1DwcrgFncaocK3fil-lT-j5InTV7NwlBjEZjDF_OuhFU";
+  window.SHEET_RANGE = window.SHEET_RANGE || "工作表1!A1";
+  window.getFixedSheetId = function(){ return window.SHEET_ID; };
+</script>
+
 </head>
 <body class="antialiased">
     <div id="toast"></div>
@@ -881,20 +889,73 @@
 </script>
 
 
+<!-- Robust binder for fixed Sheet ID -->
 <script>
-// Auto-fill and lock Google Sheet ID input on load
-document.addEventListener("DOMContentLoaded", () => {
-  const fixedId = window.SHEET_ID || "";
-  const ids = ["sheetIdInput", "sheet-id", "sheet_id"]; // try common IDs
-  let el = null;
-  for (const i of ids) { el = document.getElementById(i); if (el) break; }
-  if (el && fixedId) {
-    el.value = fixedId;
-    el.setAttribute("readonly", "readonly"); // lock editing
-    el.style.backgroundColor = el.style.backgroundColor || "#f5f5f5";
-    el.title = "此欄位已鎖定，固定寫入指定的 Google Sheet ID";
+(function(){
+  const FIXED_ID = window.SHEET_ID || "1DwcrgFncaocK3fil-lT-j5InTV7NwlBjEZjDF_OuhFU";
+
+  function lockInput(el){
+    if(!el) return;
+    if(el.value !== FIXED_ID) el.value = FIXED_ID;
+    el.setAttribute('readonly','readonly');
+    el.style.backgroundColor = el.style.backgroundColor || '#f5f5f5';
+    el.title = '此欄位已鎖定為固定的 Google Sheet ID';
   }
-});
+
+  function findCandidates(){
+    const list = Array.from(document.querySelectorAll('input[type="text"], input:not([type]), textarea'));
+    return list.filter(el => {
+      const id = (el.id||'').toLowerCase();
+      const name = (el.name||'').toLowerCase();
+      const ph = (el.placeholder||'').toLowerCase();
+      return /sheet.*id/.test(id) || /sheet.*id/.test(name) || ph.includes('google sheet id') || ph.includes('google sheets id');
+    });
+  }
+
+  function applyAll(){
+    const cands = findCandidates();
+    cands.forEach(lockInput);
+    // Also expose the first match to global for other code to pick up
+    if(cands[0]) window.__SHEET_ID_INPUT__ = cands[0];
+  }
+
+  // Initial run
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', applyAll);
+  } else {
+    applyAll();
+  }
+
+  // Keep it locked against SPA rerenders
+  const mo = new MutationObserver(() => applyAll());
+  mo.observe(document.documentElement, {subtree:true, childList:true});
+
+  // As a last resort, refresh the value periodically (lightweight)
+  setInterval(() => {
+    if (window.__SHEET_ID_INPUT__) lockInput(window.__SHEET_ID_INPUT__);
+  }, 1500);
+
+  // When user clicks common export buttons, ensure ID is there
+  function forceFixedIdUsage(){
+    if(window.__SHEET_ID_INPUT__) lockInput(window.__SHEET_ID_INPUT__);
+    // If global variables are used elsewhere, keep them authoritative
+    window.SHEET_ID = FIXED_ID;
+  }
+  // Try to hook known buttons by text content
+  function hookButtons(){
+    const btns = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'));
+    const keywords = ['匯出','google sheets','保存日誌','上傳','export','append','save'];
+    btns.forEach(b => {
+      const t = (b.innerText || b.value || '').toLowerCase();
+      if (keywords.some(k => t.includes(k)) && !b.__fixedHooked){
+        b.addEventListener('click', forceFixedIdUsage, {capture:true});
+        b.__fixedHooked = true;
+      }
+    });
+  }
+  hookButtons();
+  setInterval(hookButtons, 2000);
+})();
 </script>
 
 </body>
