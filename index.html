@@ -257,7 +257,10 @@
             messagingSenderId: "640527461851",
             appId: "1:640527461851:web:eed9f82d698275371fcbfe",
         };
-        const ADMIN_EMAIL = "jerrylee0217@gmail.com";
+        
+        // 【安全性修正】: 從比對 Email 改為比對 UID (使用者 ID)
+        // UID 是獨一無二且無法變更的，比 Email 更安全。
+        const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1"];
 
         // --- 應用程式核心物件 (全新重構) ---
         const App = {
@@ -348,13 +351,14 @@
 
             handleAuthStateChange(user) {
                 this.updateAuthUI(user);
+                // 【日期修正】: 一旦使用者狀態確定(無論是訪客或管理員)，就啟用日期導航功能。
                 this.elements.dateSelector.disabled = false;
                 this.elements.prevDayBtn.disabled = false;
-                // 注意：我們不再無條件啟用 nextDayBtn，因為它的狀態將由 updateDateNavButtonsState 管理
+                // 注意: nextDayBtn 的狀態由 updateDateNavButtonsState 動態管理，此處不需啟用。
                 this.fetchLogByDate(this.elements.dateSelector.value);
             },
 
-            // *** ✨ 新增：管理日期導航按鈕狀態的函式 ✨ ***
+            // 【日期修正】: 此函式用於動態管理日期導航按鈕的狀態
             updateDateNavButtonsState() {
                 const today = new Date();
                 // 將今天的日期物件標準化，移除時間部分，以便精確比較
@@ -380,7 +384,8 @@
             updateAuthUI(user) {
                 if (user && !user.isAnonymous) {
                     this.elements.authButton.innerText = '登出';
-                    if (user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+                    // 【安全性修正】: 改為使用 UID 進行驗證
+                    if (ADMIN_UIDS.includes(user.uid)) {
                         this.elements.userStatus.innerText = `管理員模式：${user.displayName}`;
                         this.elements.inputForm.classList.remove('hidden');
                     } else {
@@ -396,7 +401,8 @@
 
             async saveLogToFirestore() {
                 if (!this.user || this.user.isAnonymous) return this.showToast('請先登入才能儲存！', 'error');
-                if (!this.user.email || this.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return this.showToast('您沒有權限儲存！', 'error');
+                // 【安全性修正】: 改為使用 UID 進行驗證
+                if (!ADMIN_UIDS.includes(this.user.uid)) return this.showToast('您沒有權限儲存！', 'error');
                 
                 const data = this.getFormData();
                 if (!data.date) return this.showToast('請選擇日期！', 'error');
@@ -414,14 +420,13 @@
                 }
             },
 
-            // *** ✨ 修改：在讀取資料後更新按鈕狀態 ✨ ***
             async fetchLogByDate(date) {
                 if (!date) return;
                 try {
                     const docRef = doc(this.db, 'daily_logs', date);
                     const docSnap = await getDoc(docRef);
 
-                    const isUserAdmin = this.user && !this.user.isAnonymous && this.user.email && this.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                    const isUserAdmin = this.user && ADMIN_UIDS.includes(this.user.uid);
 
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -438,7 +443,7 @@
                     this.showToast(message, 'error');
                     this.updateDashboard(null);
                 } finally {
-                    // 不論成功或失敗，每次日期變更後都呼叫此函式來更新按鈕狀態
+                    // 【日期修正】: 不論讀取成功或失敗，每次日期變更後都呼叫此函式來更新按鈕狀態。
                     this.updateDateNavButtonsState();
                 }
             },
