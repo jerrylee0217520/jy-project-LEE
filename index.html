@@ -10,7 +10,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
     
-    <!-- 【GSheets 修正】: 穩定地非同步載入 Google API 腳本 -->
     <script async defer src="https://apis.google.com/js/api.js?onload=gapiLoaded"></script>
     <script async defer src="https://accounts.google.com/gsi/client?onload=gisLoaded"></script>
 
@@ -262,7 +261,7 @@
         // --- Firebase 模組 ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- 全局設定 ---
         const firebaseConfig = {
@@ -306,7 +305,6 @@
                 this.initChart();
                 this.listenForAuthStateChanges();
                 
-                // 【GSheets 修正】: 將初始化函式呼叫移至全域回呼中
                 window.gapiLoaded = () => gapi.load('client', this.initializeGapiClient.bind(this));
                 window.gisLoaded = this.initializeGisClient.bind(this);
             },
@@ -354,7 +352,6 @@
                 if (this.gapiInited && this.gisInited) {
                     console.log("Google APIs are fully loaded and initialized.");
                     this.showToast('Google API 準備就緒！');
-                    // 恢復 user-status 的預設文字
                     this.updateAuthUI(this.user);
                 }
             },
@@ -380,7 +377,9 @@
                     if (this.user && !this.user.isAnonymous) {
                         signOut(this.auth);
                     } else {
-                        signInWithPopup(this.auth, new GoogleAuthProvider()).catch(err => console.error("登入錯誤:", err));
+                        // 【登入修正】: 改用 Redirect 模式
+                        const provider = new GoogleAuthProvider();
+                        signInWithRedirect(this.auth, provider);
                     }
                 });
 
@@ -415,6 +414,17 @@
 
             listenForAuthStateChanges() {
                 this.elements.userStatus.innerText = '正在載入 Google API...';
+                
+                // 【登入修正】: 增加 getRedirectResult 來處理跳轉回來的結果
+                getRedirectResult(this.auth)
+                    .then((result) => {
+                        if (result) {
+                            console.log("Redirect result processed.", result.user);
+                        }
+                    }).catch((error) => {
+                        console.error("Error processing redirect result:", error);
+                    });
+
                 onAuthStateChanged(this.auth, (user) => {
                     if (user) {
                         this.user = user;
@@ -731,7 +741,13 @@
                 if (!this.gapiInited || !this.gisInited) {
                     return this.showToast('Google API 尚未準備就緒，請稍後再試。', 'error');
                 }
-                this.tokenClient.requestAccessToken({ prompt: '' });
+                
+                // 【授權修正】: 檢查現有 Token，若無則請求
+                if (gapi.client.getToken() === null) {
+                    this.tokenClient.requestAccessToken({ prompt: 'consent' });
+                } else {
+                    this.appendDataToSheet(spreadsheetId);
+                }
             },
 
             async appendDataToSheet(spreadsheetId) {
