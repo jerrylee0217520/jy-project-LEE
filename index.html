@@ -9,7 +9,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <!-- 【GSheets 修正】: 腳本將由下方的 Module 動態載入，此處不再需要 -->
+    
+    <!-- 【GSheets 修正】: 穩定地非同步載入 Google API 腳本 -->
+    <script async defer src="https://apis.google.com/js/api.js?onload=gapiLoaded"></script>
+    <script async defer src="https://accounts.google.com/gsi/client?onload=gisLoaded"></script>
+
     <style>
         /* --- 全局設計系統 --- */
         :root {
@@ -168,36 +172,6 @@
         .toast-success { background-image: linear-gradient(45deg, var(--primary-color) 0%, #00c4c4 100%); }
         .toast-error { background-image: linear-gradient(45deg, var(--secondary-color) 0%, #ff7e61 100%); }
     </style>
-
-<!-- Resilient Google API readiness gate -->
-<script>
-// Define safe callbacks even if scripts load before we define them
-window.__ga = window.__ga || { gapi:false, gis:false };
-window.gapiLoaded = function(){ window.__ga.gapi = true; console.info('[init] gapiLoaded'); };
-window.gisLoaded  = function(){ window.__ga.gis  = true; console.info('[init] gisLoaded'); };
-
-// Polling fallback to detect libraries even if onload didn't fire
-(function waitReady(){
-  try{
-    if (window.gapi && typeof gapi.load === 'function') window.__ga.gapi = true;
-    if (window.google && google.accounts && google.accounts.oauth2) window.__ga.gis = true;
-  }catch(_){}
-  if (window.__ga.gapi && window.__ga.gis){
-    console.info('[init] Google APIs ready');
-    window.dispatchEvent(new CustomEvent('googleapis-ready'));
-  } else {
-    setTimeout(waitReady, 400);
-  }
-})();
-
-// Optional: when ready, show a toast if available
-window.addEventListener('googleapis-ready', () => {
-  if (typeof window.showToast === 'function') {
-    window.showToast('Google API 已準備完成', 'ok', 1800);
-  }
-});
-</script>
-
 </head>
 <body class="antialiased">
     <div id="toast"></div>
@@ -302,7 +276,6 @@ window.addEventListener('googleapis-ready', () => {
         
         const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1"];
         
-        // --- 【GSheets 修改】: 已將您提供的金鑰填入 ---
         const GOOGLE_API_KEY = "AIzaSyAF90JqId5m1BRfdtc7TlTKWnYI_o5dQAs";
         const GOOGLE_CLIENT_ID = "948134512517-9thbq35n96ljei8hqks1ngn1mjqquopm.apps.googleusercontent.com";
         const DISCOVERY_DOC = "https://sheets.googleapis.com/$discovery/rest?version=v4";
@@ -332,20 +305,25 @@ window.addEventListener('googleapis-ready', () => {
                 this.initDateSelector();
                 this.initChart();
                 this.listenForAuthStateChanges();
+                
                 // 【GSheets 修正】: 將初始化函式呼叫移至全域回呼中
+                window.gapiLoaded = () => gapi.load('client', this.initializeGapiClient.bind(this));
+                window.gisLoaded = this.initializeGisClient.bind(this);
             },
             
-            initializeGapiClient() {
-                gapi.client.init({
-                    apiKey: GOOGLE_API_KEY,
-                    discoveryDocs: [DISCOVERY_DOC],
-                }).then(() => {
+            async initializeGapiClient() {
+                try {
+                    await gapi.client.init({
+                        apiKey: GOOGLE_API_KEY,
+                        discoveryDocs: [DISCOVERY_DOC],
+                    });
                     this.gapiInited = true;
                     console.log("GAPI client initialized.");
-                }).catch(err => {
+                    this.checkGoogleApiReady();
+                } catch (err) {
                     console.error("Error initializing GAPI client:", err);
                     this.showToast('GAPI client 初始化失敗', 'error');
-                });
+                }
             },
 
             initializeGisClient() {
@@ -365,9 +343,19 @@ window.addEventListener('googleapis-ready', () => {
                     });
                     this.gisInited = true;
                     console.log("GIS client initialized.");
+                    this.checkGoogleApiReady();
                 } catch (err) {
                     console.error("Error initializing GIS client:", err);
                     this.showToast('GIS client 初始化失敗', 'error');
+                }
+            },
+            
+            checkGoogleApiReady() {
+                if (this.gapiInited && this.gisInited) {
+                    console.log("Google APIs are fully loaded and initialized.");
+                    this.showToast('Google API 準備就緒！');
+                    // 恢復 user-status 的預設文字
+                    this.updateAuthUI(this.user);
                 }
             },
 
@@ -426,6 +414,7 @@ window.addEventListener('googleapis-ready', () => {
             },
 
             listenForAuthStateChanges() {
+                this.elements.userStatus.innerText = '正在載入 Google API...';
                 onAuthStateChanged(this.auth, (user) => {
                     if (user) {
                         this.user = user;
@@ -440,7 +429,9 @@ window.addEventListener('googleapis-ready', () => {
             },
 
             handleAuthStateChange(user) {
-                this.updateAuthUI(user);
+                if(this.gapiInited && this.gisInited) {
+                    this.updateAuthUI(user);
+                }
                 this.elements.dateSelector.disabled = false;
                 this.elements.prevDayBtn.disabled = false;
                 this.fetchLogByDate(this.elements.dateSelector.value);
@@ -463,6 +454,13 @@ window.addEventListener('googleapis-ready', () => {
             },
             
             updateAuthUI(user) {
+                if (!this.gapiInited || !this.gisInited) {
+                    this.elements.userStatus.innerText = '正在載入 Google API...';
+                    return;
+                }
+                
+                this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
+                
                 if (user && !user.isAnonymous) {
                     this.elements.authButton.innerText = '登出';
                     if (ADMIN_UIDS.includes(user.uid)) {
@@ -473,7 +471,6 @@ window.addEventListener('googleapis-ready', () => {
                         this.elements.inputForm.classList.add('hidden');
                     }
                 } else {
-                    this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
                     this.elements.authButton.innerText = '管理員登入';
                     this.elements.inputForm.classList.add('hidden');
                 }
@@ -741,32 +738,46 @@ window.addEventListener('googleapis-ready', () => {
                 const data = this.getFormData();
                 const logDate = data.date;
 
-                const values = [
+                // 準備總覽資料
+                const summaryValues = [
                     [
-                        logDate,
-                        data.community.totalRenovation,
-                        data.community.newRenovation,
-                        data.community.renovationRetired,
-                        data.community.totalRenovationAccum,
-                        data.community.totalRenovationRetiredAccum,
-                        data.community.newMoveIn,
-                        data.staff.managerName,
-                        data.staff.todayShift,
-                        data.staff.tomorrowShift,
-                        data.staff.shiftNotes,
-                        data.tasks.join('; '),
-                        JSON.stringify(data.parking)
+                        logDate, data.community.totalRenovation, data.community.newRenovation,
+                        data.community.renovationRetired, data.community.totalRenovationAccum,
+                        data.community.totalRenovationRetiredAccum, data.community.newMoveIn,
+                        data.staff.managerName, data.staff.todayShift, data.staff.tomorrowShift,
+                        data.staff.shiftNotes, data.tasks.join('; ')
                     ]
                 ];
 
+                // 準備停車紀錄資料
+                const parkingValues = data.parking.map(p => [
+                    logDate, p.carPlate || '', p.huBei || '', p.entryTime || '', p.exitTime || '', p.duration || ''
+                ]);
+
                 try {
-                    const response = await gapi.client.sheets.spreadsheets.values.append({
+                    const requests = [];
+
+                    // 建立寫入總覽的請求
+                    requests.push(gapi.client.sheets.spreadsheets.values.append({
                         spreadsheetId: spreadsheetId,
-                        range: '工作表1!A1',
+                        range: '每日總覽!A1',
                         valueInputOption: 'USER_ENTERED',
-                        resource: { values: values },
-                    });
-                    console.log(response);
+                        resource: { values: summaryValues },
+                    }));
+
+                    // 如果有停車紀錄，才建立寫入停車紀錄的請求
+                    if (parkingValues.length > 0) {
+                        requests.push(gapi.client.sheets.spreadsheets.values.append({
+                            spreadsheetId: spreadsheetId,
+                            range: '停車詳細紀錄!A1',
+                            valueInputOption: 'USER_ENTERED',
+                            resource: { values: parkingValues },
+                        }));
+                    }
+                    
+                    // 平行執行所有寫入請求
+                    await Promise.all(requests);
+                    
                     this.showToast(`成功將 ${logDate} 的日誌匯出至 Google Sheets！`);
                 } catch (err) {
                     console.error('寫入 Google Sheets 失敗:', err);
