@@ -759,9 +759,126 @@
 
     </script>
 
-    <!-- 🔧 Google API loader scripts (required) -->
-    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+<!-- ===== UX & Reliability Enhancements Injected ===== -->
+<style>
+  /* Toasts */
+  #app-toasts{position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+  .toast{min-width:260px;max-width:420px;padding:10px 14px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.2);background:#222;color:#fff;opacity:.95;transition:transform .2s ease,opacity .2s ease}
+  .toast.ok{background:#116b2b}
+  .toast.err{background:#8b1a1a}
+  .toast.warn{background:#9a6b00}
+  .toast.info{background:#1f4b8f}
+  .toast small{opacity:.8}
+  /* Floating health-check button */
+  #health-check-btn{position:fixed;right:16px;bottom:88px;padding:10px 14px;background:#1f4b8f;color:#fff;border:none;border-radius:999px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.2);}
+  #health-check-btn:hover{filter:brightness(1.05)}
+</style>
+
+<div id="app-toasts" aria-live="polite" aria-atomic="true"></div>
+<button id="health-check-btn" title="寫一筆測試資料到 Google Sheets（健康檢查）">健康檢查</button>
+
+<script>
+(function(){
+  // --- Toast helpers ---
+  const toastRoot = document.getElementById('app-toasts');
+  function showToast(msg, type='info', timeout=3200){
+    const div = document.createElement('div');
+    div.className = 'toast ' + type;
+    div.innerHTML = msg;
+    toastRoot.appendChild(div);
+    setTimeout(()=>{ div.style.opacity=.0; div.style.transform='translateY(6px)'; setTimeout(()=>div.remove(), 450); }, timeout);
+  }
+  window.showToast = showToast;
+
+  // --- Sleep utility ---
+  const sleep = (ms)=> new Promise(r=>setTimeout(r, ms));
+
+  // --- Token ensure (best effort) ---
+  async function ensureToken() {
+    try{
+      // If GIS tokenClient exists, try to refresh silently
+      if (window.tokenClient && typeof window.tokenClient.requestAccessToken === 'function') {
+        // If gapi auth token missing or expired, ask silently
+        if (!gapi.client.getToken() || (gapi.client.getToken().expires_in|0) <= 60) {
+          window.tokenClient.requestAccessToken({prompt:''});
+          await sleep(400); // give it a moment
+        }
+      }
+    }catch(e){ /* noop */ }
+  }
+
+  // --- Append with retries & rich errors ---
+  async function appendValuesEnhanced({sheetId, range='工作表1!A1', values=[['Ping', new Date().toISOString()]], retries=3}){
+    if (!sheetId) throw new Error('缺少 sheetId');
+    await ensureToken();
+    let lastErr;
+    for (let attempt=1; attempt<=retries; attempt++){
+      try{
+        const body = { values };
+        const res = await gapi.client.sheets.spreadsheets.values.append({
+          spreadsheetId: sheetId,
+          range,
+          valueInputOption: 'RAW',
+          insertDataOption: 'INSERT_ROWS'
+        }, body);
+        const status = res.status || (res.result && res.result.updates ? 200 : 0);
+        if (status === 200){
+          showToast(`✅ 已寫入 Google Sheets（第 ${attempt} 次嘗試）`, 'ok');
+          return res;
+        }
+        throw new Error('非 200 狀態：' + status);
+      }catch(err){
+        lastErr = err;
+        const code = (err && err.status) || (err && err.result && err.result.error && err.result.error.code) || 'unknown';
+        if (code==403 || code==401){
+          showToast('🔐 權限/登入失效，正在嘗試重新登入…', 'warn', 2600);
+          await ensureToken();
+        }
+        if (attempt < retries){
+          const backoff = Math.min(1500 * Math.pow(1.6, attempt-1), 6000);
+          showToast(`⚠️ 寫入失敗（第 ${attempt} 次）：${code}，${backoff}ms 後重試`, 'warn', 2600);
+          await sleep(backoff);
+          continue;
+        }else{
+          console.error('Append failed:', err);
+          showToast('❌ 寫入失敗：' + (err?.result?.error?.message || err?.message || '未知錯誤'), 'err', 5200);
+          throw err;
+        }
+      }
+    }
+  }
+  window.appendValuesEnhanced = appendValuesEnhanced;
+
+  // --- Health check button flow ---
+  document.getElementById('health-check-btn').addEventListener('click', async ()=>{
+    try{
+      let sid = (window.SHEET_ID || '').trim();
+      if (!sid) sid = prompt('請輸入 Google 試算表 ID（網址中間那段長串）', '');
+      if (!sid){ showToast('已取消。', 'info'); return; }
+      const rng = (window.SHEET_RANGE || '工作表1!A1');
+      const row = ['HEALTH_CHECK', new Date().toLocaleString()];
+      await appendValuesEnhanced({sheetId: sid, range: rng, values:[row]});
+    }catch(e){
+      // error toast已顯示
+    }
+  });
+
+  // --- Global notice when gapi/gis loaded ---
+  window.gapiLoaded && showToast('gapi 已載入', 'info', 1800);
+  window.gisLoaded && showToast('GIS 已載入', 'info', 1800);
+})();
+</script>
+<!-- ===== End Enhancements ===== -->
+
+
+<script>
+  // Default fixed Sheet target
+  window.SHEET_ID = "1DwcrgFncaocK3fil-lT-j5InTV7NwlBjEZjDF_OuhFU";
+  // 可改成你要的分頁與儲存格範圍
+  if (typeof window.SHEET_RANGE === 'undefined') {
+    window.SHEET_RANGE = "工作表1!A1";
+  }
+</script>
 
 </body>
 </html>
