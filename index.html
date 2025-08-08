@@ -577,10 +577,25 @@
                 container.appendChild(div);
             },
             
+            // 【日期修正】: 重寫此函式以避免時區問題
             changeDate(offset) {
-                const currentDate = new Date(this.elements.dateSelector.value + 'T00:00:00');
+                // 從輸入框取得 YYYY-MM-DD 格式的日期字串
+                const dateString = this.elements.dateSelector.value;
+                // 將其轉換為本地時區的午夜時間點
+                const currentDate = new Date(dateString + 'T00:00:00');
+                
+                // 安全地進行日期的加減
                 currentDate.setDate(currentDate.getDate() + offset);
-                this.elements.dateSelector.value = currentDate.toISOString().split('T')[0];
+
+                // 使用手動格式化，確保輸出為 YYYY-MM-DD 格式，避免 toISOString() 的時區轉換問題
+                const year = currentDate.getFullYear();
+                const month = String(currentDate.getMonth() + 1).padStart(2, '0'); // 月份是 0-indexed
+                const day = String(currentDate.getDate()).padStart(2, '0');
+                
+                // 將格式化後的本地日期字串設定回輸入框
+                this.elements.dateSelector.value = `${year}-${month}-${day}`;
+                
+                // 手動觸發 change 事件，以載入新日期的日誌
                 this.elements.dateSelector.dispatchEvent(new Event('change'));
             },
 
