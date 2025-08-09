@@ -148,7 +148,7 @@
       <h2 class="section-title text-3xl">社區核心數據</h2>
       <p class="section-subtitle">即時掌握社區的關鍵數據，包含總戶數與裝潢進度概覽。</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-        <div class="kpi-card fade-in"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg></div><div id="kpi-total-households" class="kpi-value">-</div><div class="kpi-label">總戶數</div></div>
+        <div class="kpi-card fade-in"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M9 21v-3.375c0 -.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg></div><div id="kpi-total-households" class="kpi-value">-</div><div class="kpi-label">總戶數</div></div>
         <div class="kpi-card fade-in" style="animation-delay:.1s"><div class="kpi-icon" style="color:var(--secondary-color)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.43 2.43a4.5 4.5 0 008.636-2.021.75.75 0 00-1.425-.245zM12.75 4.5a4.5 4.5 0 014.5 4.5v8.25a.75.75 0 01-1.5 0v-8.25a3 3 0 00-3-3H6.75a.75.75 0 010-1.5h6z"/></svg></div><div id="kpi-total-renovation" class="kpi-value">-</div><div class="kpi-label">總裝潢施作戶數</div></div>
         <div class="kpi-card fade-in" style="animation-delay:.2s"><div class="kpi-icon" style="color:var(--accent-color)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/></svg></div><div id="kpi-total-renovation-accum" class="kpi-value">-</div><div class="kpi-label">裝潢總計(累計)</div></div>
         <div class="kpi-card fade-in" style="animation-delay:.3s"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div id="kpi-renovation-retired-accum" class="kpi-value">-</div><div class="kpi-label">已驗退戶(累計)</div></div>
@@ -176,12 +176,12 @@
 
     <section id="renovation-progress-display" class="mb-16">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-5xl mx-auto">
-        <div class="card md:col-span-1 p-4 sm:p-6">
+        <div class="card md :col-span-1 p-4 sm:p-6">
           <h2 class="section-title text-3xl">本日裝潢動態</h2>
           <p class="section-subtitle">此圓環圖顯示了已申請裝潢的戶別中，正在施工中與已完工驗退的比例。</p>
           <div class="chart-container"><canvas id="renovationChart"></canvas></div>
         </div>
-        <div class="card md:col-span-1 p-4 sm:p-6">
+        <div class="card md :col-span-1 p-4 sm:p-6">
           <h2 class="section-title text-3xl">本日人員編制</h2>
           <p class="section-subtitle">今日值勤人員的詳細資訊與明日班表。</p>
           <div class="overflow-x-auto">
@@ -506,7 +506,11 @@
           }
 
           this.parkingFromCsv = data;
+          // 更新畫面
           this.updateDashboardFromForm();
+          // 立刻把使用者帶到下方表格以看到結果（需求：上傳後要顯示出來）
+          const section = document.getElementById('parking-display');
+          if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
           this.showToast(`已載入 ${data.length} 筆停車紀錄`);
         }catch(err){
           console.error(err);
@@ -657,7 +661,7 @@
       },
 
       getFormData(){
-        const date = this.getSelectedDateStr();
+        const date = self?.document ? this.getSelectedDateStr() : '';
         const totalRenovation = document.getElementById('totalRenovation').value;
         const newRenovation = document.getElementById('newRenovation').value;
         const renovationRetired = document.getElementById('renovationRetired').value;
@@ -724,17 +728,23 @@
 
         const parkingBody = document.getElementById('parking-table-body');
         parkingBody.innerHTML='';
-        (data.parking||[]).forEach(r=>{
+        if ((data.parking||[]).length === 0){
           parkingBody.insertAdjacentHTML('beforeend', `
-            <tr>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate||'-'}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei||'-'}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime||'-'}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime||'-'}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration||'-'}</td>
-            </tr>
+            <tr><td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 text-center">目前尚無資料</td></tr>
           `);
-        });
+        } else {
+          (data.parking||[]).forEach(r=>{
+            parkingBody.insertAdjacentHTML('beforeend', `
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate||'-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei||'-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime||'-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime||'-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration||'-'}</td>
+              </tr>
+            `);
+          });
+        }
 
         if (this.renovationChart){
           const retired = parseInt(data.community.totalRenovationRetiredAccum) || 0;
@@ -839,7 +849,7 @@
       },
 
       async appendDataToSheet(spreadsheetId){
-        const data = this.getFormData();
+        const data = self?.document ? this.getFormData() : { date:'', community:{}, staff:{}, checklist:{}, tasks:[], parking:[] };
         const logDate = data.date;
 
         const summaryValues = [[
@@ -850,7 +860,7 @@
           data.staff.shiftNotes, data.tasks.join('; ')
         ]];
 
-        const parkingValues = data.parking.map(p=>[
+        const parkingValues = (data.parking||[]).map(p=>[
           logDate, p.carPlate||'', p.huBei||'', p.entryTime||'', p.exitTime||'', p.duration||''
         ]);
 
