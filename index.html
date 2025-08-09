@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>佳元松江社區每日營運儀表板</title>
 
+  <!-- 先接住 Google 腳本 onload，避免 race condition -->
+  <script>
+    window.__googleReady = { gapi:false, gis:false };
+    window.gapiLoaded = function () {
+      window.__googleReady.gapi = true;
+      if (window.App && typeof window.App.onGapiLoaded === 'function') {
+        window.App.onGapiLoaded();
+      }
+    };
+    window.gisLoaded = function () {
+      window.__googleReady.gis = true;
+      if (window.App && typeof window.App.onGisLoaded === 'function') {
+        window.App.onGisLoaded();
+      }
+    };
+  </script>
+
   <!-- UI / Chart -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -233,6 +250,7 @@
       appId: "1:640527461851:web:eed9f82d698275371fcbfe",
     };
 
+    // 使用你的 UID 白名單
     const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1"];
 
     // --- Google APIs (Sheets) ---
@@ -241,11 +259,16 @@
     const DISCOVERY_DOC = "https://sheets.googleapis.com/$discovery/rest?version=v4";
     const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 
+    // --- 應用 ---
     const App = {
       db:null, auth:null, user:null,
       gapiInited:false, gisInited:false, tokenClient:null,
       renovationChart:null, taskCount:0, parkingRecordCount:0,
       elements:{},
+
+      // 提供 head 內回呼觸發
+      onGapiLoaded(){ if (!window.gapi) return; window.gapi.load('client', ()=> this.initializeGapiClient()); },
+      onGisLoaded(){ this.initializeGisClient(); },
 
       init(){
         const firebaseApp = initializeApp(firebaseConfig);
@@ -258,12 +281,12 @@
         this.initChart();
         this.listenForAuthStateChanges();
 
-        // 提供給外部 script onload 的全域回呼
-        window.gapiLoaded = () => {
-          if (!window.gapi) return;
-          window.gapi.load('client', this.initializeGapiClient.bind(this));
-        };
-        window.gisLoaded = this.initializeGisClient.bind(this);
+        // 將 App 掛到全域，給 head 的回呼找到
+        window.App = this;
+
+        // 若外部腳本已先載入，主動補呼
+        if (window.__googleReady?.gapi) this.onGapiLoaded();
+        if (window.__googleReady?.gis)  this.onGisLoaded();
       },
 
       cacheDOMElements(){
@@ -288,7 +311,6 @@
             signOut(this.auth);
           } else {
             const provider = new GoogleAuthProvider();
-            // 顯示帳號選擇（避免自動帶舊帳號）
             provider.setCustomParameters({ prompt: 'select_account' });
             signInWithRedirect(this.auth, provider);
           }
@@ -348,7 +370,6 @@
                 this.showToast('Google 授權失敗或被取消。', 'error');
               }
             },
-            // 讓第一次授權時可帶出選帳號/同意
             prompt: ''
           });
           this.gisInited = true;
@@ -370,17 +391,16 @@
       listenForAuthStateChanges(){
         this.elements.userStatus.innerText = '正在載入 Google API...';
 
-        // 一定要處理 Redirect 回來的結果，否則登入後 UI 不會更新
         getRedirectResult(this.auth)
           .then((result)=>{ if (result && result.user) console.log('Redirect result:', result.user.uid); })
           .catch((error)=>{ console.error('處理 redirect 結果錯誤：', error); });
 
         onAuthStateChanged(this.auth, (user)=>{
           if (user) {
+            console.log('[DEBUG] uid=', user.uid, 'email=', user.email); // ← 方便你核對 UID
             this.user = user;
             this.handleAuthStateChange(user);
           } else {
-            // 瀏覽訪客模式（讀取 Firestore 仍可）
             signInAnonymously(this.auth).catch(err=>{
               console.error('匿名登入失敗:', err);
               this.elements.userStatus.innerText = "錯誤：無法連接至資料庫";
@@ -403,9 +423,11 @@
         }
         this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
 
+        const isAdmin = user && ADMIN_UIDS.includes(user.uid);
+
         if (user && !user.isAnonymous) {
           this.elements.authButton.innerText = '登出';
-          if (ADMIN_UIDS.includes(user.uid)) {
+          if (isAdmin) {
             this.elements.userStatus.innerText = `管理員模式：${user.displayName || user.email || '已登入'}`;
             this.elements.inputForm.classList.remove('hidden');
           } else {
@@ -680,10 +702,8 @@
 
         const token = gapi.client.getToken();
         if (!token) {
-          // 第一次需要授權
           this.tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
-          // 已有 token，直接寫
           this.appendDataToSheet(spreadsheetId);
         }
       },
