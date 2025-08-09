@@ -247,6 +247,26 @@
       renovationChart:null, taskCount:0,
       parkingData: [],
       elements:{},
+      
+      // ---- 引號清洗工具（移除頭尾的 " ' 以及中文引號 “ ”）----
+      sanitize(str){
+        if (typeof str !== 'string') return str;
+        return str.trim().replace(/^[\"“”']+|[\"“”']+$/g, '');
+      },
+      sanitizeRecord(r){
+        if (!r) return r;
+        return {
+          carPlate: this.sanitize(r.carPlate ?? ''),
+          huBei: this.sanitize(r.huBei ?? ''),
+          entryTime: this.sanitize(r.entryTime ?? ''),
+          exitTime: this.sanitize(r.exitTime ?? ''),
+          duration: this.sanitize(r.duration ?? '')
+        };
+      },
+      sanitizeArray(arr){
+        return Array.isArray(arr) ? arr.map(v => this.sanitizeRecord(v)) : [];
+      },
+
 
       init(){
         const app = initializeApp(firebaseConfig);
@@ -569,7 +589,7 @@
         tasksBody.innerHTML='';
         (data.tasks||[]).forEach(task=>{ if(task) tasksBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td></tr>`); });
         
-        this.parkingData = data.parking || [];
+        this.parkingData = this.sanitizeArray(data.parking || []);
         this.renderParkingData();
 
         if (this.renovationChart){
@@ -602,7 +622,7 @@
         (data.tasks||[]).forEach(task=> this.addTask(task));
         if ((data.tasks||[]).length===0) this.addTask();
         
-        this.parkingData = data.parking || [];
+        this.parkingData = this.sanitizeArray(data.parking || []);
         this.renderParkingData();
       },
 
@@ -723,7 +743,7 @@
             [],
             ["五、停車紀錄"],
             ["車牌號碼", "戶別", "入場時間", "出場時間", "停放時長(分鐘)"],
-            ...data.parking.map(p => [ p.carPlate || '', p.huBei || '', p.entryTime || '', p.exitTime || '', p.duration || '' ])
+            ...this.sanitizeArray(data.parking).map(p => [ p.carPlate || '', p.huBei || '', p.entryTime || '', p.exitTime || '', p.duration || '' ])
         ];
 
         try {
