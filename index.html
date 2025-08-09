@@ -150,7 +150,7 @@
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">入場時間</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">出場時間</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放時長(分鐘)</th>
-            </tr></thead>
+            </thead>
             <tbody id="parking-table-body"></tbody>
           </table>
         </div>
@@ -266,6 +266,109 @@
       sanitizeArray(arr){
         return Array.isArray(arr) ? arr.map(v => this.sanitizeRecord(v)) : [];
       },
+      
+      // ---- 正規化：車牌轉大寫、移除全形空白與前後空白 ----
+      normalizePlate(plate){
+        const s = this.sanitize(String(plate ?? ''))
+          .replace(/\u3000/g, ' ')    // 全形空白 -> 半形
+          .trim()
+          .toUpperCase();
+        return s;
+      },
+      
+      // ---- 計算停放時長（分鐘）----
+      calcDurationMinutes(entry, exit){
+        const e = new Date(entry);
+        const x = new Date(exit);
+        if (isNaN(e.getTime()) || isNaN(x.getTime())) return null;
+        const diff = x.getTime() - e.getTime();
+        if (diff < 0) return null;
+        return Math.round(diff / 60000); // 四捨五入到分鐘
+      },
+      
+      // ---- 套用時長、自動去重與正規化（以 車牌+進場時間 當 key）----
+      
+      normalizeAndDedup(arr){
+        const out = [];
+        const seen = new Set();
+        (this.sanitizeArray(arr) || []).forEach(r => {
+          const carPlate = this.normalizePlate(r.carPlate);
+          const entryTime = this.sanitize(r.entryTime);
+          let duration = this.sanitize(r.duration);
+          if (!duration) {
+            const mins = this.calcDurationMinutes(entryTime, this.sanitize(r.exitTime));
+            if (mins != null) duration = `${mins}`; // 純數字（渲染時加 '分鐘'）
+          }
+          const rec = {
+            carPlate,
+            huBei: this.sanitize(r.huBei),
+            purchased: this.sanitize(r.purchased || ''),
+            entryTime,
+            exitTime: this.sanitize(r.exitTime),
+            duration: duration || this.sanitize(r.duration || '')
+          };
+          const key = `${carPlate}__${entryTime}`;
+          if (!seen.has(key)) { seen.add(key); out.push(rec); }
+        });
+        return out;
+      },
+        
+      
+      // ---- 強壯版 CSV 解析（支援引號包覆與欄位內逗號）----
+      parseCsvRow(line){
+        const result = [];
+        let cur = '';
+        let inQuote = false;
+        let quoteChar = null;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (!inQuote && (ch === '"' || ch === '“' || ch === '”')) {
+            inQuote = true; quoteChar = ch;
+            continue;
+          }
+          if (inQuote) {
+            // 結束引號（“ ” 或 "）
+            if ((ch === '"' && (quoteChar === '"' || quoteChar === '“' || quoteChar === '”')) ||
+                (ch === '”' && (quoteChar === '“' || quoteChar === '”'))) {
+              // 轉義 "" -> "
+              if (i + 1 < line.length && line[i + 1] === '"') {
+                cur += '"'; i++;
+              } else {
+                inQuote = false; quoteChar = null;
+              }
+              continue;
+            }
+            cur += ch;
+          } else {
+            if (ch === ',') {
+              result.push(cur); cur = '';
+            } else {
+              cur += ch;
+            }
+          }
+        }
+        result.push(cur);
+        return result;
+      },
+      parseCsvText(text){
+        if (!text) return [];
+        const rows = text.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+        const mapped = [];
+        for (const row of rows) {
+          const columns = this.parseCsvRow(row);
+          if (columns.length < 3) continue;
+          const clean = v => this.sanitize(v);
+          mapped.push({
+            carPlate:  clean(columns[0] || ''),
+            huBei:     clean(columns[1] || ''),
+            entryTime: clean(columns[2] || ''),
+            exitTime:  clean(columns[3] || ''),
+            duration:  clean(columns[4] || '')
+          });
+        }
+        return this.normalizeAndDedup(mapped);
+      },
+
 
 
       init(){
@@ -464,35 +567,34 @@
         }
       },
       
+      
       handleCsvImport(event) {
         const file = event.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = (e) => {
-            const text = e.target.result;
-            const rows = text.trim().split(/\r?\n/).slice(1);
-            
-            this.parkingData = rows.map(row => {
-                const columns = row.split(',');
-                if (columns.length < 5) return null;
-                return {
-                    carPlate: columns[0].trim(),
-                    huBei: columns[1].trim(),
-                    entryTime: columns[2].trim(),
-                    exitTime: columns[3].trim(),
-                    duration: columns[4].trim()
-                };
-            }).filter(Boolean);
-
-            this.showToast(`成功匯入 ${this.parkingData.length} 筆停車紀錄`, 'success');
-            this.renderParkingData();
-            this.updateDashboardFromForm();
+          const buf = e.target.result;
+          let text = '';
+          try {
+            text = new TextDecoder('utf-8', {fatal:false}).decode(buf);
+          } catch (err) {
+            try { text = new TextDecoder().decode(buf); } catch(e2) {}
+          }
+          const bad = (text.match(/\uFFFD/g) || []).length;
+          if (bad > 5 || / /.test(text)) {
+            try { text = new TextDecoder('gbk').decode(buf); } catch(_) {}
+          }
+          this.parkingData = this.parseCsvText(text);
+          this.showToast(`成功匯入 ${this.parkingData.length} 筆停車紀錄`, 'success');
+          this.renderParkingData();
+          this.updateDashboardFromForm();
         };
         reader.onerror = () => this.showToast('讀取檔案失敗', 'error');
-        reader.readAsText(file, 'UTF-8');
+        reader.readAsArrayBuffer(file);
         event.target.value = '';
       },
+    
+      
       
       renderParkingData() {
         this.elements.parkingRecordsContainer.innerHTML = '';
@@ -502,8 +604,36 @@
             const list = document.createElement('ul');
             list.className = 'list-disc list-inside space-y-1';
             this.parkingData.forEach(r => {
+                const s = (v)=> this.sanitize(v);
+                let duration = s(r.duration);
+                if (duration && /^\d+$/.test(duration)) duration = duration + ' 分鐘';
                 const item = document.createElement('li');
-                item.textContent = `車牌: ${r.carPlate}, 戶別: ${r.huBei}, 時間: ${r.entryTime} - ${r.exitTime}`;
+                const purchased = s(r.purchased) ? `, 購買車位: ${s(r.purchased)}` : '';
+                item.textContent = `車牌: ${s(r.carPlate)}, 戶別: ${s(r.huBei)}${purchased}, 時間: ${s(r.entryTime)}${r.exitTime ? " - " + s(r.exitTime) : ""}`;
+                list.appendChild(item);
+            });
+            this.elements.parkingRecordsContainer.appendChild(list);
+        }
+
+        const parkingBody = document.getElementById('parking-table-body');
+        parkingBody.innerHTML = '';
+        this.parkingData.forEach(r => {
+            const s = (v)=> this.sanitize(v);
+            let duration = s(r.duration);
+            if (duration && /^\d+$/.test(duration)) duration = duration + ' 分鐘';
+            parkingBody.insertAdjacentHTML('beforeend', `
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s(r.carPlate) || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s(r.huBei) || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s(r.purchased) || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s(r.entryTime) || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${s(r.exitTime) || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${duration || '-'}</td>
+              </tr>
+            `);
+        });
+      },
+     戶別: ${r.huBei}, 時間: ${r.entryTime} - ${r.exitTime}`;
                 list.appendChild(item);
             });
             this.elements.parkingRecordsContainer.appendChild(list);
@@ -589,7 +719,7 @@
         tasksBody.innerHTML='';
         (data.tasks||[]).forEach(task=>{ if(task) tasksBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td></tr>`); });
         
-        this.parkingData = this.sanitizeArray(data.parking || []);
+        this.parkingData = this.normalizeAndDedup(data.parking || []);
         this.renderParkingData();
 
         if (this.renovationChart){
@@ -622,7 +752,7 @@
         (data.tasks||[]).forEach(task=> this.addTask(task));
         if ((data.tasks||[]).length===0) this.addTask();
         
-        this.parkingData = this.sanitizeArray(data.parking || []);
+        this.parkingData = this.normalizeAndDedup(data.parking || []);
         this.renderParkingData();
       },
 
@@ -681,7 +811,8 @@
         data.tasks.forEach(task=>{ csv += `${task}\n`; });
         csv += "\n六、停車紀錄\n車牌號碼,戶別,入場時間,出場時間,停放時長(分鐘)\n";
         data.parking.forEach(r=>{
-          csv += `${r.carPlate||''},${r.huBei||''},${r.entryTime||''},${r.exitTime||''},${r.duration||''}\n`;
+          csv += `${r.carPlate||''},${r.huBei||''},${(r.purchased||'')},${r.entryTime||''},${r.exitTime||''},${r.duration||''}
+`;
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
@@ -743,7 +874,7 @@
             [],
             ["五、停車紀錄"],
             ["車牌號碼", "戶別", "入場時間", "出場時間", "停放時長(分鐘)"],
-            ...this.sanitizeArray(data.parking).map(p => [ p.carPlate || '', p.huBei || '', p.entryTime || '', p.exitTime || '', p.duration || '' ])
+            ...this.normalizeAndDedup(data.parking).map(p => [ p.carPlate || '', p.huBei || '', p.entryTime || '', p.exitTime || '', p.duration || '' ])
         ];
 
         try {
