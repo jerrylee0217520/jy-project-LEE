@@ -92,7 +92,7 @@
           </div>
         </div>
 
-        <!-- 停車紀錄改為 CSV 上傳 -->
+        <!-- 停車紀錄改為 CSV 上傳（升級版） -->
         <div class="form-section">
           <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">停車紀錄（CSV 上傳）</h2>
 
@@ -108,7 +108,7 @@
             <span class="font-mono">車牌號碼/戶別/入場時間/出場時間/停放時長(分鐘)</span>
             或 <span class="font-mono">carPlate/huBei/entryTime/exitTime/duration</span>
           </div>
-          <p id="parking-upload-hint" class="text-xs text-gray-500 mt-2">時間格式建議 HH:MM（24 小時制）。若未提供停放時長，系統將自動依入/出場時間計算。</p>
+          <p id="parking-upload-hint" class="text-xs text-gray-500 mt-2">時間格式可為 HH:MM 或含日期（例如 2025/8/8 14:23），系統會自動擷取 HH:MM。若未提供停放時長，將自動依入/出場時間計算。</p>
         </div>
 
         <div class="form-section">
@@ -263,7 +263,7 @@
       gapiReady:false, gisReady:false, tokenClient:null,
       renovationChart:null, taskCount:0,
       elements:{},
-      // 新：CSV 讀入後的停車紀錄（以此為主）
+      // CSV 讀入後的停車紀錄（以此為主）
       parkingFromCsv: [],
 
       // ---------- 日期工具：全以 "YYYY-MM-DD" 字串 ----------
@@ -373,50 +373,136 @@
         });
       },
 
+      /* ================================
+         ▼▼ CSV 强化：多編碼/別名/時間處理 ▼▼
+      ==================================*/
+
+      // 取 HH:MM（支援 "YYYY/M/D HH:MM"）
+      extractHHMM(str) {
+        if (!str) return '';
+        const m = String(str).trim().match(/(\d{1,2}):(\d{2})/);
+        if (!m) return '';
+        const h = Math.max(0, Math.min(23, parseInt(m[1], 10)));
+        const mi = Math.max(0, Math.min(59, parseInt(m[2], 10)));
+        return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
+      },
+
+      // 檔案 → 文字：自動嘗試多種編碼
+      async fileToTextSmart(file) {
+        const ab = await file.arrayBuffer();
+        const tryDecoders = ['utf-8','big5','gbk','gb18030','utf-16le','utf-16be'];
+        for (const enc of tryDecoders) {
+          try {
+            const td = new TextDecoder(enc, { fatal: false });
+            const txt = td.decode(new Uint8Array(ab));
+            const bad = (txt.match(/\uFFFD/g) || []).length; // 黑菱形數量
+            if (bad <= 2) return txt;
+          } catch {}
+        }
+        return new TextDecoder('utf-8').decode(new Uint8Array(ab));
+      },
+
+      // 可變分隔符 CSV 解析（支援逗號/分號/tab/豎線），含引號處理
+      parseCsvFlexible(text) {
+        text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+        if (!text) return [];
+        const first = text.split('\n', 1)[0] || '';
+        const cand = [',',';','\t','|'];
+        const counts = cand.map(d => ({ d, c: (first.match(new RegExp(`\\${d}`,'g')) || []).length }));
+        const delim = (counts.sort((a,b)=>b.c-a.c)[0]?.d) || ',';
+
+        const rows = [];
+        let cur = '', inQ = false, row = [];
+        for (let i=0;i<text.length;i++){
+          const ch = text[i];
+          if (inQ) {
+            if (ch === '"') {
+              if (text[i+1] === '"') { cur += '"'; i++; }
+              else { inQ = false; }
+            } else { cur += ch; }
+          } else {
+            if (ch === '"') inQ = true;
+            else if (ch === delim) { row.push(cur); cur = ''; }
+            else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+            else { cur += ch; }
+          }
+        }
+        row.push(cur); rows.push(row);
+        return rows.filter(r => r.some(c => String(c||'').trim()!==''));
+      },
+
+      // 標題正規化
+      normHeader(h) {
+        if (!h) return '';
+        let s = String(h).trim();
+        s = s.replace(/[（）]/g, m => (m==='（')?'(' : ')'); // 全形括號→半形
+        s = s.replace(/\s|　/g, '');                       // 去半形/全形空白
+        return s.toLowerCase();
+      },
+
+      // 在多個別名裡找對應的欄位 index
+      findHeaderIndex(headers, aliasList) {
+        const H = headers.map(this.normHeader);
+        for (const alias of aliasList) {
+          const idx = H.indexOf(this.normHeader(alias));
+          if (idx >= 0) return idx;
+        }
+        return -1;
+      },
+
+      // 計算分鐘（支援隔夜）
+      calcDurationMinutes(entryHHMM, exitHHMM) {
+        const m = s => {
+          const mm = /^(\d{1,2}):(\d{2})$/.exec(String(s||'').trim());
+          if (!mm) return null;
+          const h = +mm[1], mi = +mm[2];
+          if (h<0||h>23||mi<0||mi>59) return null;
+          return h*60 + mi;
+        };
+        const a = m(entryHHMM), b = m(exitHHMM);
+        if (a==null || b==null) return null;
+        let diff = b - a;
+        if (diff < 0) diff += 24*60;
+        return diff;
+      },
+
+      // 主要：CSV 讀檔 + 解析 + 套用到 this.parkingFromCsv
       async loadParkingCsv(file){
         try{
-          const text = await file.text();
-          const rows = this.parseCsv(text);
+          const text = await this.fileToTextSmart(file);
+          const rows = this.parseCsvFlexible(text);
           if (!rows.length) { this.showToast('CSV 內容為空','error'); return; }
 
-          // 取標題列（大小寫/空白容錯）
-          const headers = rows[0].map(h => (h||'').toString().trim());
-          const idx = (names)=> {
-            let p = -1;
-            for (const n of names) { const i = headers.findIndex(h => h.toLowerCase() === n.toLowerCase()); if (i>=0){ p=i; break; } }
-            return p;
-          };
-          const iPlate = idx(['車牌號碼','carPlate']);
-          const iHuBei = idx(['戶別','huBei']);
-          const iEntry = idx(['入場時間','entryTime']);
-          const iExit  = idx(['出場時間','exitTime']);
-          const iDur   = idx(['停放時長(分鐘)','duration']);
+          const headers = rows[0].map(h => (h||'').toString());
+          const iPlate = this.findHeaderIndex(headers, ['車牌號碼','車牌號','車牌','車號','carplate','plate']);
+          const iHuBei = this.findHeaderIndex(headers, ['戶別','戶號','住戶','hubei','huBei','unit','house']);
+          const iEntry = this.findHeaderIndex(headers, ['入場時間','入場','進場','entrytime','entry']);
+          const iExit  = this.findHeaderIndex(headers, ['出場時間','出場','離場','exittime','exit']);
+          const iDur   = this.findHeaderIndex(headers, ['停放時長(分鐘)','停放時長','時長','duration','mins']);
 
           if (iPlate<0 || iHuBei<0 || iEntry<0 || iExit<0) {
-            this.showToast('CSV 標題需包含：車牌號碼/戶別/入場時間/出場時間（或英文對應）','error');
+            this.showToast('CSV 標題需包含：車牌號碼/戶別/入場時間/出場時間（或英文/別名對應）','error');
+            console.warn('Headers seen:', headers);
             return;
           }
 
           const data = [];
           for (let r=1; r<rows.length; r++){
-            const row = rows[r]; if (!row || row.every(c => (c||'').trim()==='')) continue;
-            const rec = {
-              carPlate: (row[iPlate]||'').trim(),
-              huBei: (row[iHuBei]||'').trim(),
-              entryTime: (row[iEntry]||'').trim(),
-              exitTime: (row[iExit]||'').trim(),
-              duration: ''
-            };
-            // 計算或套用 duration
-            let durVal = (iDur>=0 ? (row[iDur]||'').toString().trim() : '');
-            if (durVal) {
-              const n = parseInt(durVal,10);
-              rec.duration = isNaN(n) ? '' : String(n);
-            } else {
-              const m = this.calcDurationMinutes(rec.entryTime, rec.exitTime);
-              rec.duration = (m==null) ? '' : String(m);
+            const row = rows[r]; if (!row || row.every(c => (c||'').toString().trim()==='')) continue;
+            const plate = (row[iPlate]||'').toString().trim();
+            const huBei = (row[iHuBei]||'').toString().trim();
+            const entryHHMM = this.extractHHMM(row[iEntry]);
+            const exitHHMM  = this.extractHHMM(row[iExit]);
+            let duration = '';
+            if (iDur >= 0) {
+              const n = parseInt((row[iDur]||'').toString().trim(), 10);
+              if (!isNaN(n)) duration = String(n);
             }
-            data.push(rec);
+            if (!duration) {
+              const m = this.calcDurationMinutes(entryHHMM, exitHHMM);
+              duration = (m==null) ? '' : String(m);
+            }
+            data.push({ carPlate: plate, huBei, entryTime: entryHHMM, exitTime: exitHHMM, duration });
           }
 
           this.parkingFromCsv = data;
@@ -428,49 +514,9 @@
         }
       },
 
-      // 簡易 CSV 解析（支援引號與逗號）
-      parseCsv(text){
-        const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-        const out = [];
-        for (const line of lines){
-          // 跳過空行
-          if (!line || !line.trim()) continue;
-          const row = [];
-          let cur = '', inQ = false;
-          for (let i=0;i<line.length;i++){
-            const ch = line[i];
-            if (inQ){
-              if (ch === '"'){
-                if (line[i+1] === '"'){ cur+='"'; i++; }
-                else { inQ = false; }
-              } else { cur += ch; }
-            }else{
-              if (ch === '"'){ inQ = true; }
-              else if (ch === ','){ row.push(cur); cur = ''; }
-              else { cur += ch; }
-            }
-          }
-          row.push(cur);
-          out.push(row);
-        }
-        return out;
-      },
-
-      // 根據 HH:MM 計算分鐘（支援隔夜）
-      calcDurationMinutes(entry, exit){
-        const hhmm = (t)=> {
-          const m = /^(\d{1,2}):(\d{2})$/.exec((t||'').trim());
-          if (!m) return null;
-          const h = parseInt(m[1],10), mi = parseInt(m[2],10);
-          if (isNaN(h)||isNaN(mi)||h<0||h>23||mi<0||mi>59) return null;
-          return h*60 + mi;
-        };
-        const a = hhmm(entry), b = hhmm(exit);
-        if (a==null || b==null) return null;
-        let diff = b - a;
-        if (diff < 0) diff += 24*60;
-        return diff;
-      },
+      /* ================================
+         ▲▲ CSV 强化區塊到此 ▲▲
+      ==================================*/
 
       initDateSelector(){
         this.elements.dateSelector.value = this.formatDate(new Date());
@@ -591,12 +637,11 @@
           const isAdmin = this.user && !this.user.isAnonymous && ADMIN_UIDS.includes(this.user.uid);
           if (snap.exists()) {
             const data = snap.data();
-            // 如果有舊資料的 parking，就直接使用；否則維持目前 CSV 上傳的內容
+            // 若舊資料有 parking，沿用；否則維持目前 CSV 狀態
             this.parkingFromCsv = Array.isArray(data.parking) ? data.parking : [];
             this.updateDashboard(data);
             if (isAdmin) this.updateInputForm(data);
           } else {
-            // 無資料：保留現有欄位（含目前 CSV 狀態）
             const defaultData = this.getFormData();
             defaultData.date = key;
             this.updateDashboard(defaultData);
@@ -628,7 +673,7 @@
         const check2 = document.getElementById('check2').checked;
         const check3 = document.getElementById('check3').checked;
         const tasks = Array.from(document.querySelectorAll('#tasks-container input')).map(el=>el.value).filter(v=>v.trim()!=='');
-        // 核心變更：停車紀錄改從 CSV 來源（this.parkingFromCsv）
+        // 停車紀錄改從 CSV 來源
         const parkingRecords = Array.isArray(this.parkingFromCsv) ? this.parkingFromCsv : [];
         return {
           date,
@@ -716,7 +761,7 @@
         document.getElementById('tomorrowShift').value = data.staff.tomorrowShift || '';
         document.getElementById('shiftNotes').value = data.staff.shiftNotes || '';
 
-        // CSV 模式無需建立表單輸入欄位
+        // CSV 模式：沿用資料/或清空
         this.parkingFromCsv = Array.isArray(data.parking) ? data.parking : [];
       },
 
