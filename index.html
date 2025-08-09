@@ -5,23 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>佳元松江社區每日營運儀表板</title>
 
-  <!-- 先接住 Google 腳本 onload，避免 race condition -->
-  <script>
-    window.__googleReady = { gapi:false, gis:false };
-    window.gapiLoaded = function () {
-      window.__googleReady.gapi = true;
-      if (window.App && typeof window.App.onGapiLoaded === 'function') {
-        window.App.onGapiLoaded();
-      }
-    };
-    window.gisLoaded = function () {
-      window.__googleReady.gis = true;
-      if (window.App && typeof window.App.onGisLoaded === 'function') {
-        window.App.onGisLoaded();
-      }
-    };
-  </script>
-
   <!-- UI / Chart -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -29,9 +12,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 
-  <!-- Google APIs (Sheets) + Google Identity Services -->
-  <script async defer src="https://apis.google.com/js/api.js?onload=gapiLoaded"></script>
-  <script async defer src="https://accounts.google.com/gsi/client?onload=gisLoaded"></script>
+  <!-- Google APIs (Sheets) + Google Identity Services（不綁 onload，改程式等待） -->
+  <script async src="https://apis.google.com/js/api.js"></script>
+  <script async src="https://accounts.google.com/gsi/client"></script>
 
   <style>
     :root{
@@ -238,7 +221,10 @@
     // --- Firebase ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-    import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { 
+      getAuth, onAuthStateChanged, signInAnonymously,
+      GoogleAuthProvider, signInWithPopup, signOut
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
     // --- Config ---
     const firebaseConfig = {
@@ -250,8 +236,7 @@
       appId: "1:640527461851:web:eed9f82d698275371fcbfe",
     };
 
-    // 使用你的 UID 白名單
-    const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1"];
+    const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1"]; // 你的 UID
 
     // --- Google APIs (Sheets) ---
     const GOOGLE_API_KEY = "AIzaSyAF90JqId5m1BRfdtc7TlTKWnYI_o5dQAs";
@@ -259,34 +244,24 @@
     const DISCOVERY_DOC = "https://sheets.googleapis.com/$discovery/rest?version=v4";
     const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 
-    // --- 應用 ---
+    // --- App ---
     const App = {
       db:null, auth:null, user:null,
-      gapiInited:false, gisInited:false, tokenClient:null,
+      gapiReady:false, gisReady:false, tokenClient:null,
       renovationChart:null, taskCount:0, parkingRecordCount:0,
       elements:{},
 
-      // 提供 head 內回呼觸發
-      onGapiLoaded(){ if (!window.gapi) return; window.gapi.load('client', ()=> this.initializeGapiClient()); },
-      onGisLoaded(){ this.initializeGisClient(); },
-
       init(){
-        const firebaseApp = initializeApp(firebaseConfig);
-        this.auth = getAuth(firebaseApp);
-        this.db = getFirestore(firebaseApp);
+        const app = initializeApp(firebaseConfig);
+        this.auth = getAuth(app);
+        this.db = getFirestore(app);
 
         this.cacheDOMElements();
-        this.bindPermanentEventListeners();
+        this.bindEvents();
         this.initDateSelector();
         this.initChart();
-        this.listenForAuthStateChanges();
-
-        // 將 App 掛到全域，給 head 的回呼找到
-        window.App = this;
-
-        // 若外部腳本已先載入，主動補呼
-        if (window.__googleReady?.gapi) this.onGapiLoaded();
-        if (window.__googleReady?.gis)  this.onGisLoaded();
+        this.initAuthWatcher();
+        this.waitGoogleApis();
       },
 
       cacheDOMElements(){
@@ -305,15 +280,15 @@
         };
       },
 
-      bindPermanentEventListeners(){
-        this.elements.authButton.addEventListener('click', ()=>{
-          if (this.user && !this.user.isAnonymous) {
-            signOut(this.auth);
-          } else {
+      bindEvents(){
+        this.elements.authButton.addEventListener('click', async ()=>{
+          const u = this.auth.currentUser;
+          if (u && !u.isAnonymous) { await signOut(this.auth); return; }
+          try{
             const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({ prompt: 'select_account' });
-            signInWithRedirect(this.auth, provider);
-          }
+            provider.setCustomParameters({ prompt:'select_account' });
+            await signInWithPopup(this.auth, provider);
+          }catch(e){ console.error('Google 登入錯誤:', e); }
         });
 
         this.elements.dateSelector.addEventListener('change', (e)=> this.fetchLogByDate(e.target.value));
@@ -345,85 +320,31 @@
         });
       },
 
-      async initializeGapiClient(){
-        try{
-          await gapi.client.init({ apiKey: GOOGLE_API_KEY, discoveryDocs:[DISCOVERY_DOC] });
-          this.gapiInited = true;
-          this.checkGoogleApiReady();
-        }catch(err){
-          console.error("GAPI 初始化失敗:", err);
-          this.showToast('GAPI client 初始化失敗', 'error');
-          this.elements.userStatus.innerText = 'GAPI 初始化失敗，請稍後重試或檢查 API Key 限制。';
-        }
-      },
-
-      initializeGisClient(){
-        try{
-          this.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: GOOGLE_CLIENT_ID,
-            scope: SCOPES,
-            callback: async (tokenResponse) => {
-              if (tokenResponse && tokenResponse.access_token) {
-                const spreadsheetId = this.elements.spreadsheetIdInput.value;
-                await this.appendDataToSheet(spreadsheetId);
-              } else {
-                this.showToast('Google 授權失敗或被取消。', 'error');
-              }
-            },
-            prompt: ''
-          });
-          this.gisInited = true;
-          this.checkGoogleApiReady();
-        }catch(err){
-          console.error("GIS 初始化失敗:", err);
-          this.showToast('GIS client 初始化失敗', 'error');
-          this.elements.userStatus.innerText = 'GIS 初始化失敗，請稍後重試或檢查 OAuth 設定。';
-        }
-      },
-
-      checkGoogleApiReady(){
-        if (this.gapiInited && this.gisInited) {
-          this.showToast('Google API 準備就緒！');
-          this.updateAuthUI(this.user);
-        }
-      },
-
-      listenForAuthStateChanges(){
+      initAuthWatcher(){
         this.elements.userStatus.innerText = '正在載入 Google API...';
 
-        getRedirectResult(this.auth)
-          .then((result)=>{ if (result && result.user) console.log('Redirect result:', result.user.uid); })
-          .catch((error)=>{ console.error('處理 redirect 結果錯誤：', error); });
-
         onAuthStateChanged(this.auth, (user)=>{
-          if (user) {
-            console.log('[DEBUG] uid=', user.uid, 'email=', user.email); // ← 方便你核對 UID
-            this.user = user;
-            this.handleAuthStateChange(user);
-          } else {
+          console.log('[DEBUG] uid=', user?.uid, 'email=', user?.email);
+          this.user = user || null;
+          this.updateAuthUI();
+          if (!user) {
+            // 未登入 → 匿名登入（訪客可讀）
             signInAnonymously(this.auth).catch(err=>{
               console.error('匿名登入失敗:', err);
               this.elements.userStatus.innerText = "錯誤：無法連接至資料庫";
             });
+          } else {
+            // 啟用日期選擇並讀取資料
+            this.elements.dateSelector.disabled = false;
+            this.elements.prevDayBtn.disabled = false;
+            this.fetchLogByDate(this.elements.dateSelector.value);
           }
         });
       },
 
-      handleAuthStateChange(user){
-        if(this.gapiInited && this.gisInited) this.updateAuthUI(user);
-        this.elements.dateSelector.disabled = false;
-        this.elements.prevDayBtn.disabled = false;
-        this.fetchLogByDate(this.elements.dateSelector.value);
-      },
-
-      updateAuthUI(user){
-        if (!this.gapiInited || !this.gisInited) {
-          this.elements.userStatus.innerText = '正在載入 Google API...';
-          return;
-        }
-        this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
-
-        const isAdmin = user && ADMIN_UIDS.includes(user.uid);
+      updateAuthUI(){
+        const user = this.user;
+        const isAdmin = user && !user.isAnonymous && ADMIN_UIDS.includes(user.uid);
 
         if (user && !user.isAnonymous) {
           this.elements.authButton.innerText = '登出';
@@ -435,13 +356,53 @@
             this.elements.inputForm.classList.add('hidden');
           }
         } else {
+          this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
           this.elements.authButton.innerText = '管理員登入';
           this.elements.inputForm.classList.add('hidden');
         }
       },
 
+      // ---- Google API 初始化（等待載入，避免 onload 競態） ----
+      waitGoogleApis(){
+        const waitFor = (cond, cb)=>{ const t=setInterval(()=>{ if(cond()){clearInterval(t); cb();}},50); };
+        waitFor(()=> window.gapi && window.gapi.load, ()=>{
+          gapi.load('client', async ()=>{
+            try{
+              await gapi.client.init({ apiKey: GOOGLE_API_KEY, discoveryDocs:[DISCOVERY_DOC] });
+              this.gapiReady = true;
+              this.maybeApisReady();
+            }catch(e){ console.error('GAPI 初始化失敗', e); this.showToast('GAPI 初始化失敗','error'); }
+          });
+        });
+        waitFor(()=> window.google && window.google.accounts && window.google.accounts.oauth2, ()=>{
+          try{
+            this.tokenClient = google.accounts.oauth2.initTokenClient({
+              client_id: GOOGLE_CLIENT_ID,
+              scope: SCOPES,
+              callback: async (tokenResponse)=>{
+                if (tokenResponse && tokenResponse.access_token) {
+                  const spreadsheetId = this.elements.spreadsheetIdInput.value.trim();
+                  await this.appendDataToSheet(spreadsheetId);
+                } else {
+                  this.showToast('Google 授權失敗或被取消。','error');
+                }
+              },
+              prompt: ''
+            });
+            this.gisReady = true;
+            this.maybeApisReady();
+          }catch(e){ console.error('GIS 初始化失敗', e); this.showToast('GIS 初始化失敗','error'); }
+        });
+      },
+      maybeApisReady(){
+        if (this.gapiReady && this.gisReady) {
+          this.showToast('Google API 準備就緒！');
+          this.updateAuthUI();
+        }
+      },
+
       async saveLogToFirestore(){
-        if (!this.user || !ADMIN_UIDS.includes(this.user.uid))
+        if (!this.user || this.user.isAnonymous || !ADMIN_UIDS.includes(this.user.uid))
           return this.showToast('您沒有權限儲存！', 'error');
 
         const data = this.getFormData();
@@ -463,7 +424,7 @@
         try{
           const docRef = doc(this.db, 'daily_logs', date);
           const snap = await getDoc(docRef);
-          const isAdmin = this.user && ADMIN_UIDS.includes(this.user.uid);
+          const isAdmin = this.user && !this.user.isAnonymous && ADMIN_UIDS.includes(this.user.uid);
           if (snap.exists()) {
             const data = snap.data();
             this.updateDashboard(data);
@@ -698,7 +659,7 @@
       exportToSheets(){
         const spreadsheetId = this.elements.spreadsheetIdInput.value.trim();
         if (!spreadsheetId) return this.showToast('請先輸入目標 Google Sheet 的 ID！','error');
-        if (!this.gapiInited || !this.gisInited) return this.showToast('Google API 尚未準備就緒，請稍後再試。','error');
+        if (!this.gapiReady || !this.gisReady) return this.showToast('Google API 尚未準備就緒，請稍後再試。','error');
 
         const token = gapi.client.getToken();
         if (!token) {
