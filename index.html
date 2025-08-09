@@ -431,7 +431,7 @@
             this.updateDashboard(data);
             if (isAdmin) this.updateInputForm(data);
           } else {
-            const defaultData = this.getFormData(); // Get default structure
+            const defaultData = this.getFormData(); 
             this.updateDashboard(defaultData);
             if (isAdmin) this.clearInputForm();
           }
@@ -647,18 +647,18 @@
         const c1 = data.checklist.check1 ? '✓' : '-';
         const c2 = data.checklist.check2 ? '✓' : '-';
         const c3 = data.checklist.check3 ? '✓' : '-';
-        let csv = "\uFEFF"; // BOM for UTF-8
+        let csv = "\uFEFF";
         csv += `佳元松江社區｜工作日誌｜${logDate}\n\n`;
         csv += "一、社區動態\n項目,數量（戶）\n";
         csv += `總裝潢施作,${data.community.totalRenovation}\n本日申請裝潢,${data.community.newRenovation}\n本日裝潢驗退,${data.community.renovationRetired}\n裝潢總計（累計）,${data.community.totalRenovationAccum}\n已驗退戶（累計）,${data.community.totalRenovationRetiredAccum}\n\n`;
         csv += "二、社區基本數據\n項目,數值\n";
         csv += `地址,松江路252巷10號\n總戶數,${data.community.totalHouseholds}\n本日交屋戶數,${data.community.newMoveIn}\n\n`;
         csv += "三、人員編制\n職位,人員姓名,今日出勤,明日出勤,備註\n";
-        csv += `經理,${data.staff.managerName},"${data.staff.todayShift}","${data.staff.tomorrowShift}","${data.staff.shiftNotes}"\n\n`;
+        csv += `經理,${data.staff.managerName},${data.staff.todayShift},${data.staff.tomorrowShift},${data.staff.shiftNotes}\n\n`;
         csv += "四、每日清點\n項目,完成狀態\n";
         csv += `公共區域門窗安全檢查,${c1}\n無郵件及包裹點交,${c2}\n施工圍籬與施工車輛停放位置確認,${c3}\n\n`;
         csv += "五、今日工作事項\n";
-        data.tasks.forEach(task=>{ csv += `"${task}"\n`; });
+        data.tasks.forEach(task=>{ csv += `${task}\n`; });
         csv += "\n六、停車紀錄\n車牌號碼,戶別,入場時間,出場時間,停放時長(分鐘)\n";
         data.parking.forEach(r=>{
           csv += `${r.carPlate||''},${r.huBei||''},${r.entryTime||''},${r.exitTime||''},${r.duration||''}\n`;
