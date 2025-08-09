@@ -5,14 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>佳元松江社區每日營運儀表板</title>
 
-  <!-- UI / Chart -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 
-  <!-- Google APIs (Sheets) + Google Identity Services -->
   <script async src="https://apis.google.com/js/api.js"></script>
   <script async src="https://accounts.google.com/gsi/client"></script>
 
@@ -36,8 +34,6 @@
     .form-input:focus{background-color:#fff;border-color:var(--primary-color);box-shadow:0 0 0 3px rgba(0,166,166,.2);outline:none}
     .btn-primary{background-image:linear-gradient(45deg,var(--primary-color) 0%,#00c4c4 100%);border:none;border-radius:.75rem;box-shadow:0 4px 15px 0 rgba(0,166,166,.3);transition:all .3s ease;padding:.75rem 1.25rem;color:white;font-weight:700}
     .btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 7px 20px 0 rgba(0,166,166,.4)}
-    .btn-ghost{border:1px dashed var(--primary-color);color:var(--primary-color);border-radius:.75rem;padding:.5rem .9rem;font-weight:700;background:transparent}
-    .btn-ghost:hover{background:#fff}
     .date-navigator{max-width:28rem;padding:.75rem}
     #date-selector{font-size:1.25rem;font-weight:700;color:var(--text-dark);border:2px solid transparent;text-align:center;padding:.5rem 1rem}
     #date-selector::-webkit-calendar-picker-indicator{cursor:pointer;filter:invert(.5)}
@@ -49,8 +45,6 @@
     tr:last-child td{border-bottom:none}tr:hover{background-color:rgba(230,245,245,.5)}
     #toast{position:fixed;top:20px;right:20px;padding:1rem 1.5rem;border-radius:.75rem;color:white;font-weight:600;z-index:10000;opacity:0;transform:translateY(-20px);transition:opacity .3s,transform .3s;box-shadow:0 4px 15px rgba(0,0,0,.2)}
     #toast.show{opacity:1;transform:translateY(0)}.toast-success{background-image:linear-gradient(45deg,var(--primary-color) 0%,#00c4c4 100%)}.toast-error{background-image:linear-gradient(45deg,var(--secondary-color) 0%,#ff7e61 100%)}
-    .dropzone{border:2px dashed var(--primary-color);border-radius:1rem;background:rgba(255,255,255,.5)}
-    .dropzone.dragover{background:#fff}
   </style>
 </head>
 <body class="antialiased">
@@ -92,25 +86,14 @@
           </div>
         </div>
 
-        <!-- 停車紀錄改為 CSV 上傳（升級版） -->
         <div class="form-section">
-          <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">停車紀錄（CSV 上傳）</h2>
-
-          <div class="flex items-center gap-3 mb-3">
-            <input type="file" id="parking-csv-input" accept=".csv" class="hidden">
-            <button id="parking-upload-btn" class="btn-primary">上傳 CSV</button>
-            <button id="parking-clear-btn" class="btn-ghost">清空紀錄</button>
-            <button id="parking-template-btn" class="btn-ghost">下載範本</button>
+          <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">停車紀錄</h2>
+          <div id="parking-records-display-input" class="space-y-2 text-gray-600">
+             <p>請由此匯入今日停車紀錄 CSV 檔案。</p>
           </div>
-
-          <div id="parking-dropzone" class="dropzone p-4 text-sm text-gray-600">
-            拖放 CSV 到此處，或按「上傳 CSV」選擇檔案。支援欄位：
-            <span class="font-mono">車牌號碼/戶別/入場時間/出場時間/停放時長(分鐘)</span>
-            或 <span class="font-mono">carPlate/huBei/entryTime/exitTime/duration</span>
-          </div>
-          <p id="parking-upload-hint" class="text-xs text-gray-500 mt-2">時間格式可為 HH:MM 或含日期（例如 2025/8/8 14:23），系統會自動擷取 HH:MM。若未提供停放時長，將自動依入/出場時間計算。</p>
+          <input type="file" id="csv-file-input" class="hidden" accept=".csv">
+          <button id="import-csv-btn" class="mt-4 btn-primary">從 CSV 匯入停車紀錄</button>
         </div>
-
         <div class="form-section">
           <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">每日清點</h2>
           <div class="space-y-2">
@@ -148,7 +131,7 @@
       <h2 class="section-title text-3xl">社區核心數據</h2>
       <p class="section-subtitle">即時掌握社區的關鍵數據，包含總戶數與裝潢進度概覽。</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
-        <div class="kpi-card fade-in"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M9 21v-3.375c0 -.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg></div><div id="kpi-total-households" class="kpi-value">-</div><div class="kpi-label">總戶數</div></div>
+        <div class="kpi-card fade-in"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg></div><div id="kpi-total-households" class="kpi-value">-</div><div class="kpi-label">總戶數</div></div>
         <div class="kpi-card fade-in" style="animation-delay:.1s"><div class="kpi-icon" style="color:var(--secondary-color)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.43 2.43a4.5 4.5 0 008.636-2.021.75.75 0 00-1.425-.245zM12.75 4.5a4.5 4.5 0 014.5 4.5v8.25a.75.75 0 01-1.5 0v-8.25a3 3 0 00-3-3H6.75a.75.75 0 010-1.5h6z"/></svg></div><div id="kpi-total-renovation" class="kpi-value">-</div><div class="kpi-label">總裝潢施作戶數</div></div>
         <div class="kpi-card fade-in" style="animation-delay:.2s"><div class="kpi-icon" style="color:var(--accent-color)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/></svg></div><div id="kpi-total-renovation-accum" class="kpi-value">-</div><div class="kpi-label">裝潢總計(累計)</div></div>
         <div class="kpi-card fade-in" style="animation-delay:.3s"><div class="kpi-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><div id="kpi-renovation-retired-accum" class="kpi-value">-</div><div class="kpi-label">已驗退戶(累計)</div></div>
@@ -176,12 +159,12 @@
 
     <section id="renovation-progress-display" class="mb-16">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-5xl mx-auto">
-        <div class="card md :col-span-1 p-4 sm:p-6">
+        <div class="card md:col-span-1 p-4 sm:p-6">
           <h2 class="section-title text-3xl">本日裝潢動態</h2>
           <p class="section-subtitle">此圓環圖顯示了已申請裝潢的戶別中，正在施工中與已完工驗退的比例。</p>
           <div class="chart-container"><canvas id="renovationChart"></canvas></div>
         </div>
-        <div class="card md :col-span-1 p-4 sm:p-6">
+        <div class="card md:col-span-1 p-4 sm:p-6">
           <h2 class="section-title text-3xl">本日人員編制</h2>
           <p class="section-subtitle">今日值勤人員的詳細資訊與明日班表。</p>
           <div class="overflow-x-auto">
@@ -262,20 +245,8 @@
       db:null, auth:null, user:null,
       gapiReady:false, gisReady:false, tokenClient:null,
       renovationChart:null, taskCount:0,
+      parkingData: [], // NEW: State for imported parking data
       elements:{},
-      // CSV 讀入後的停車紀錄（以此為主）
-      parkingFromCsv: [],
-
-      // ---------- 日期工具：全以 "YYYY-MM-DD" 字串 ----------
-      formatDate(dateObj){
-        const y = dateObj.getFullYear();
-        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const d = String(dateObj.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      },
-      getSelectedDateStr(){
-        return (this.elements.dateSelector.value || this.formatDate(new Date()));
-      },
 
       init(){
         const app = initializeApp(firebaseConfig);
@@ -302,12 +273,10 @@
           prevDayBtn:document.getElementById('prev-day-btn'),
           nextDayBtn:document.getElementById('next-day-btn'),
           exportToSheetsBtn:document.getElementById('export-to-sheets-btn'),
-          // CSV UI
-          parkingCsvInput: document.getElementById('parking-csv-input'),
-          parkingUploadBtn: document.getElementById('parking-upload-btn'),
-          parkingClearBtn: document.getElementById('parking-clear-btn'),
-          parkingTemplateBtn: document.getElementById('parking-template-btn'),
-          parkingDropzone: document.getElementById('parking-dropzone'),
+          // NEW: CSV Import Elements
+          importCsvBtn: document.getElementById('import-csv-btn'),
+          csvFileInput: document.getElementById('csv-file-input'),
+          parkingRecordsDisplayInput: document.getElementById('parking-records-display-input'),
         };
       },
 
@@ -322,16 +291,7 @@
           }catch(e){ console.error('Google 登入錯誤:', e); }
         });
 
-        // 日期變更 → 正規化後讀取
-        this.elements.dateSelector.addEventListener('change', (e)=> {
-          const v = (e.target.value || '').trim();
-          const parts = v.split('-').map(x => parseInt(x,10));
-          const safe = (parts.length === 3 && !parts.some(isNaN))
-            ? `${String(parts[0]).padStart(4,'0')}-${String(parts[1]).padStart(2,'0')}-${String(parts[2]).padStart(2,'0')}`
-            : this.formatDate(new Date());
-          this.fetchLogByDate(safe);
-        });
-
+        this.elements.dateSelector.addEventListener('change', (e)=> this.fetchLogByDate(e.target.value));
         this.elements.prevDayBtn.addEventListener('click', ()=> this.changeDate(-1));
         this.elements.nextDayBtn.addEventListener('click', ()=> this.changeDate(1));
         this.elements.saveLogBtn.addEventListener('click', ()=> this.saveLogToFirestore());
@@ -339,191 +299,20 @@
 
         document.getElementById('generate-csv-btn').addEventListener('click', ()=> this.generateCsv());
         document.getElementById('addTaskBtn').addEventListener('click', ()=> this.addTask());
+        
+        // NEW: CSV Import Event Listeners
+        this.elements.importCsvBtn.addEventListener('click', () => this.elements.csvFileInput.click());
+        this.elements.csvFileInput.addEventListener('change', (e) => this.handleCsvImport(e));
+
         document.querySelectorAll('#input-form input, #input-form textarea').forEach(input=>{
           input.addEventListener('input', ()=> this.updateDashboardFromForm());
         });
-
-        // --- CSV: 按鈕選檔 ---
-        this.elements.parkingUploadBtn.addEventListener('click', ()=> this.elements.parkingCsvInput.click());
-        this.elements.parkingCsvInput.addEventListener('change', async (e)=>{
-          if (e.target.files && e.target.files[0]) { await this.loadParkingCsv(e.target.files[0]); }
-        });
-
-        // --- CSV: 拖放 ---
-        const dz = this.elements.parkingDropzone;
-        ;['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, (e)=>{ e.preventDefault(); dz.classList.add('dragover'); }));
-        ;['dragleave','drop'].forEach(ev => dz.addEventListener(ev, (e)=>{ e.preventDefault(); dz.classList.remove('dragover'); }));
-        dz.addEventListener('drop', async (e)=>{
-          const f = e.dataTransfer?.files?.[0];
-          if (f) await this.loadParkingCsv(f);
-        });
-
-        // --- CSV: 清空與範本 ---
-        this.elements.parkingClearBtn.addEventListener('click', ()=>{
-          this.parkingFromCsv = [];
-          this.updateDashboardFromForm();
-          this.showToast('已清空上傳的停車紀錄');
-        });
-        this.elements.parkingTemplateBtn.addEventListener('click', ()=>{
-          const template = '車牌號碼,戶別,入場時間,出場時間,停放時長(分鐘)\nABC-1234,A1,08:05,09:40,\nXYZ-5678,B2,23:10,00:30,\n';
-          const blob = new Blob([template], {type:'text/csv;charset=utf-8;'});
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = '停車紀錄_範本.csv'; a.click(); URL.revokeObjectURL(url);
-        });
       },
-
-      /* ================================
-         ▼▼ CSV 强化：多編碼/別名/時間處理 ▼▼
-      ==================================*/
-
-      // 取 HH:MM（支援 "YYYY/M/D HH:MM"）
-      extractHHMM(str) {
-        if (!str) return '';
-        const m = String(str).trim().match(/(\d{1,2}):(\d{2})/);
-        if (!m) return '';
-        const h = Math.max(0, Math.min(23, parseInt(m[1], 10)));
-        const mi = Math.max(0, Math.min(59, parseInt(m[2], 10)));
-        return `${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}`;
-      },
-
-      // 檔案 → 文字：自動嘗試多種編碼
-      async fileToTextSmart(file) {
-        const ab = await file.arrayBuffer();
-        const tryDecoders = ['utf-8','big5','gbk','gb18030','utf-16le','utf-16be'];
-        for (const enc of tryDecoders) {
-          try {
-            const td = new TextDecoder(enc, { fatal: false });
-            const txt = td.decode(new Uint8Array(ab));
-            const bad = (txt.match(/\uFFFD/g) || []).length; // 黑菱形數量
-            if (bad <= 2) return txt;
-          } catch {}
-        }
-        return new TextDecoder('utf-8').decode(new Uint8Array(ab));
-      },
-
-      // 可變分隔符 CSV 解析（支援逗號/分號/tab/豎線），含引號處理
-      parseCsvFlexible(text) {
-        text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-        if (!text) return [];
-        const first = text.split('\n', 1)[0] || '';
-        const cand = [',',';','\t','|'];
-        const counts = cand.map(d => ({ d, c: (first.match(new RegExp(`\\${d}`,'g')) || []).length }));
-        const delim = (counts.sort((a,b)=>b.c-a.c)[0]?.d) || ',';
-
-        const rows = [];
-        let cur = '', inQ = false, row = [];
-        for (let i=0;i<text.length;i++){
-          const ch = text[i];
-          if (inQ) {
-            if (ch === '"') {
-              if (text[i+1] === '"') { cur += '"'; i++; }
-              else { inQ = false; }
-            } else { cur += ch; }
-          } else {
-            if (ch === '"') inQ = true;
-            else if (ch === delim) { row.push(cur); cur = ''; }
-            else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
-            else { cur += ch; }
-          }
-        }
-        row.push(cur); rows.push(row);
-        return rows.filter(r => r.some(c => String(c||'').trim()!==''));
-      },
-
-      // 標題正規化
-      normHeader(h) {
-        if (!h) return '';
-        let s = String(h).trim();
-        s = s.replace(/[（）]/g, m => (m==='（')?'(' : ')'); // 全形括號→半形
-        s = s.replace(/\s|　/g, '');                       // 去半形/全形空白
-        return s.toLowerCase();
-      },
-
-      // 在多個別名裡找對應的欄位 index
-      findHeaderIndex(headers, aliasList) {
-        const H = headers.map(this.normHeader);
-        for (const alias of aliasList) {
-          const idx = H.indexOf(this.normHeader(alias));
-          if (idx >= 0) return idx;
-        }
-        return -1;
-      },
-
-      // 計算分鐘（支援隔夜）
-      calcDurationMinutes(entryHHMM, exitHHMM) {
-        const m = s => {
-          const mm = /^(\d{1,2}):(\d{2})$/.exec(String(s||'').trim());
-          if (!mm) return null;
-          const h = +mm[1], mi = +mm[2];
-          if (h<0||h>23||mi<0||mi>59) return null;
-          return h*60 + mi;
-        };
-        const a = m(entryHHMM), b = m(exitHHMM);
-        if (a==null || b==null) return null;
-        let diff = b - a;
-        if (diff < 0) diff += 24*60;
-        return diff;
-      },
-
-      // 主要：CSV 讀檔 + 解析 + 套用到 this.parkingFromCsv
-      async loadParkingCsv(file){
-        try{
-          const text = await this.fileToTextSmart(file);
-          const rows = this.parseCsvFlexible(text);
-          if (!rows.length) { this.showToast('CSV 內容為空','error'); return; }
-
-          const headers = rows[0].map(h => (h||'').toString());
-          const iPlate = this.findHeaderIndex(headers, ['車牌號碼','車牌號','車牌','車號','carplate','plate']);
-          const iHuBei = this.findHeaderIndex(headers, ['戶別','戶號','住戶','hubei','huBei','unit','house']);
-          const iEntry = this.findHeaderIndex(headers, ['入場時間','入場','進場','entrytime','entry']);
-          const iExit  = this.findHeaderIndex(headers, ['出場時間','出場','離場','exittime','exit']);
-          const iDur   = this.findHeaderIndex(headers, ['停放時長(分鐘)','停放時長','時長','duration','mins']);
-
-          if (iPlate<0 || iHuBei<0 || iEntry<0 || iExit<0) {
-            this.showToast('CSV 標題需包含：車牌號碼/戶別/入場時間/出場時間（或英文/別名對應）','error');
-            console.warn('Headers seen:', headers);
-            return;
-          }
-
-          const data = [];
-          for (let r=1; r<rows.length; r++){
-            const row = rows[r]; if (!row || row.every(c => (c||'').toString().trim()==='')) continue;
-            const plate = (row[iPlate]||'').toString().trim();
-            const huBei = (row[iHuBei]||'').toString().trim();
-            const entryHHMM = this.extractHHMM(row[iEntry]);
-            const exitHHMM  = this.extractHHMM(row[iExit]);
-            let duration = '';
-            if (iDur >= 0) {
-              const n = parseInt((row[iDur]||'').toString().trim(), 10);
-              if (!isNaN(n)) duration = String(n);
-            }
-            if (!duration) {
-              const m = this.calcDurationMinutes(entryHHMM, exitHHMM);
-              duration = (m==null) ? '' : String(m);
-            }
-            data.push({ carPlate: plate, huBei, entryTime: entryHHMM, exitTime: exitHHMM, duration });
-          }
-
-          this.parkingFromCsv = data;
-          // 更新畫面
-          this.updateDashboardFromForm();
-          // 立刻把使用者帶到下方表格以看到結果（需求：上傳後要顯示出來）
-          const section = document.getElementById('parking-display');
-          if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          this.showToast(`已載入 ${data.length} 筆停車紀錄`);
-        }catch(err){
-          console.error(err);
-          this.showToast('CSV 讀取失敗','error');
-        }
-      },
-
-      /* ================================
-         ▲▲ CSV 强化區塊到此 ▲▲
-      ==================================*/
 
       initDateSelector(){
-        this.elements.dateSelector.value = this.formatDate(new Date());
+        const today = new Date();
+        today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+        this.elements.dateSelector.value = today.toISOString().split('T')[0];
       },
 
       initChart(){
@@ -549,7 +338,7 @@
           } else {
             this.elements.dateSelector.disabled = false;
             this.elements.prevDayBtn.disabled = false;
-            this.fetchLogByDate(this.getSelectedDateStr());
+            this.fetchLogByDate(this.elements.dateSelector.value);
           }
         });
       },
@@ -574,7 +363,6 @@
         }
       },
 
-      // ---- Google API 初始化（等待載入） ----
       waitGoogleApis(){
         const waitFor = (cond, cb)=>{ const t=setInterval(()=>{ if(cond()){clearInterval(t); cb();}},50); };
         waitFor(()=> window.gapi && window.gapi.load, ()=>{
@@ -632,22 +420,16 @@
 
       async fetchLogByDate(date){
         if (!date) return;
-        const [y,m,d] = date.split('-').map(n=>parseInt(n,10));
-        const key = `${String(y).padStart(4,'0')}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-
         try{
-          const docRef = doc(this.db, 'daily_logs', key);
+          const docRef = doc(this.db, 'daily_logs', date);
           const snap = await getDoc(docRef);
           const isAdmin = this.user && !this.user.isAnonymous && ADMIN_UIDS.includes(this.user.uid);
           if (snap.exists()) {
             const data = snap.data();
-            // 若舊資料有 parking，沿用；否則維持目前 CSV 狀態
-            this.parkingFromCsv = Array.isArray(data.parking) ? data.parking : [];
             this.updateDashboard(data);
             if (isAdmin) this.updateInputForm(data);
           } else {
             const defaultData = this.getFormData();
-            defaultData.date = key;
             this.updateDashboard(defaultData);
             if (isAdmin) this.clearInputForm();
           }
@@ -659,9 +441,51 @@
           this.updateDateNavButtonsState();
         }
       },
+      
+      handleCsvImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target.result;
+            const rows = text.trim().split(/\r?\n/).slice(1);
+            
+            this.parkingData = rows.map(row => {
+                const columns = row.split(',');
+                if (columns.length < 5) return null; // Assuming carPlate, huBei, entry, exit, duration
+                return {
+                    carPlate: columns[0] ? columns[0].trim() : '',
+                    huBei: columns[1] ? columns[1].trim() : '',
+                    entryTime: columns[2] ? columns[2].trim() : '',
+                    exitTime: columns[3] ? columns[3].trim() : '',
+                    duration: columns[4] ? columns[4].trim() : ''
+                };
+            }).filter(Boolean);
+
+            this.showToast(`成功匯入 ${this.parkingData.length} 筆停車紀錄`, 'success');
+            
+            // Update the small display in the input form
+            this.elements.parkingRecordsDisplayInput.innerHTML = '';
+            const list = document.createElement('ul');
+            list.className = 'list-disc list-inside space-y-1 text-sm';
+            this.parkingData.forEach(r => {
+                const item = document.createElement('li');
+                item.textContent = `車牌: ${r.carPlate}, 戶別: ${r.huBei}`;
+                list.appendChild(item);
+            });
+            this.elements.parkingRecordsDisplayInput.appendChild(list);
+
+            // Trigger full dashboard update
+            this.updateDashboardFromForm();
+        };
+        reader.onerror = () => this.showToast('讀取檔案失敗', 'error');
+        reader.readAsText(file, 'UTF-8');
+        event.target.value = '';
+      },
 
       getFormData(){
-        const date = self?.document ? this.getSelectedDateStr() : '';
+        const date = this.elements.dateSelector.value;
         const totalRenovation = document.getElementById('totalRenovation').value;
         const newRenovation = document.getElementById('newRenovation').value;
         const renovationRetired = document.getElementById('renovationRetired').value;
@@ -677,21 +501,20 @@
         const check2 = document.getElementById('check2').checked;
         const check3 = document.getElementById('check3').checked;
         const tasks = Array.from(document.querySelectorAll('#tasks-container input')).map(el=>el.value).filter(v=>v.trim()!=='');
-        // 停車紀錄改從 CSV 來源
-        const parkingRecords = Array.isArray(this.parkingFromCsv) ? this.parkingFromCsv : [];
+        
         return {
           date,
           community:{ totalRenovation,newRenovation,renovationRetired,totalRenovationAccum,totalRenovationRetiredAccum,newMoveIn,totalHouseholds },
           checklist:{ check1,check2,check3 },
           tasks,
           staff:{ managerName,todayShift,tomorrowShift,shiftNotes },
-          parking: parkingRecords
+          parking: this.parkingData
         };
       },
 
       updateDashboard(data){
-        const [yy, mm, dd] = this.getSelectedDateStr().split('-').map(n=>parseInt(n,10));
-        this.elements.displayDate.innerText = `${yy}年${mm}月${dd}日`;
+        const dateObj = new Date(this.elements.dateSelector.value + 'T00:00:00');
+        this.elements.displayDate.innerText = dateObj.toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
 
         if (!data){
           this.elements.displayDate.innerText = '請選擇日期或該日無資料';
@@ -725,26 +548,27 @@
         const tasksBody = document.getElementById('tasks-table-body');
         tasksBody.innerHTML='';
         (data.tasks||[]).forEach(task=>{ if(task) tasksBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td></tr>`); });
-
+        
+        // MODIFIED: This is the core logic to display parking data
         const parkingBody = document.getElementById('parking-table-body');
-        parkingBody.innerHTML='';
-        if ((data.parking||[]).length === 0){
-          parkingBody.insertAdjacentHTML('beforeend', `
-            <tr><td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-400 text-center">目前尚無資料</td></tr>
-          `);
+        parkingBody.innerHTML = '';
+        const parkingDataToDisplay = data.parking || [];
+        if (parkingDataToDisplay.length === 0) {
+            parkingBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">本日無停車紀錄</td></tr>`;
         } else {
-          (data.parking||[]).forEach(r=>{
-            parkingBody.insertAdjacentHTML('beforeend', `
-              <tr>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate||'-'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei||'-'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime||'-'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime||'-'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration||'-'}</td>
-              </tr>
-            `);
-          });
+            parkingDataToDisplay.forEach(r => {
+                parkingBody.insertAdjacentHTML('beforeend', `
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration || '-'}</td>
+                  </tr>
+                `);
+            });
         }
+
 
         if (this.renovationChart){
           const retired = parseInt(data.community.totalRenovationRetiredAccum) || 0;
@@ -771,14 +595,35 @@
         document.getElementById('tomorrowShift').value = data.staff.tomorrowShift || '';
         document.getElementById('shiftNotes').value = data.staff.shiftNotes || '';
 
-        // CSV 模式：沿用資料/或清空
-        this.parkingFromCsv = Array.isArray(data.parking) ? data.parking : [];
+        const tasksContainer = document.getElementById('tasks-container');
+        tasksContainer.innerHTML=''; this.taskCount=0;
+        (data.tasks||[]).forEach(task=> this.addTask(task));
+        if ((data.tasks||[]).length===0) this.addTask();
+        
+        this.parkingData = data.parking || [];
+        // Display loaded parking data in the input section as well
+        this.elements.parkingRecordsDisplayInput.innerHTML = '';
+        if (this.parkingData.length > 0) {
+            const list = document.createElement('ul');
+            list.className = 'list-disc list-inside space-y-1 text-sm';
+            this.parkingData.forEach(r => {
+                const item = document.createElement('li');
+                item.textContent = `車牌: ${r.carPlate}, 戶別: ${r.huBei}`;
+                list.appendChild(item);
+            });
+            this.elements.parkingRecordsDisplayInput.appendChild(list);
+        } else {
+            this.elements.parkingRecordsDisplayInput.innerHTML = '<p>請由此匯入今日停車紀錄 CSV 檔案。</p>';
+        }
       },
 
       clearInputForm(){
-        document.querySelectorAll('#input-form input, #input-form textarea').forEach(el=>{ el.type==='checkbox' ? el.checked=false : el.value=''; });
+        document.querySelectorAll('#input-form input[type="text"], #input-form input[type="number"], #input-form textarea').forEach(el=>{ el.value=''; });
+        document.querySelectorAll('#input-form input[type="checkbox"]').forEach(el => { el.checked = false; });
         const t = document.getElementById('tasks-container'); t.innerHTML=''; this.taskCount=0; this.addTask();
-        this.parkingFromCsv = [];
+        
+        this.parkingData = [];
+        this.elements.parkingRecordsDisplayInput.innerHTML = '<p>請由此匯入今日停車紀錄 CSV 檔案。</p>';
       },
 
       updateDashboardFromForm(){ this.updateDashboard(this.getFormData()); },
@@ -787,24 +632,23 @@
         const c = document.getElementById('tasks-container');
         const i = this.taskCount++;
         const div = document.createElement('div');
-        div.innerHTML = `<label class="block mb-2">事項 ${i+1}</label><input type="text" class="form-input" value="${val}">`;
+        div.className = 'flex items-center space-x-2';
+        div.innerHTML = `<input type="text" class="form-input w-full" value="${val}" placeholder="新增事項 ${i+1}">`;
         div.querySelector('input').addEventListener('input', ()=> this.updateDashboardFromForm());
         c.appendChild(div);
       },
 
       changeDate(offset){
-        const [y, m, d] = this.getSelectedDateStr().split('-').map(n => parseInt(n, 10));
-        const base = new Date(y, m - 1, d);
-        base.setDate(base.getDate() + offset);
-        const nextStr = this.formatDate(base);
-        this.elements.dateSelector.value = nextStr;
+        const d = new Date(this.elements.dateSelector.value + 'T00:00:00');
+        d.setDate(d.getDate()+offset);
+        const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+        this.elements.dateSelector.value = `${y}-${m}-${day}`;
         this.elements.dateSelector.dispatchEvent(new Event('change'));
       },
 
       updateDateNavButtonsState(){
         const today = new Date(); today.setHours(0,0,0,0);
-        const [y,m,d] = this.getSelectedDateStr().split('-').map(n=>parseInt(n,10));
-        const selected = new Date(y, m-1, d);
+        const selected = new Date(this.elements.dateSelector.value + 'T00:00:00');
         this.elements.nextDayBtn.disabled = selected >= today;
       },
 
@@ -814,27 +658,31 @@
         const c1 = data.checklist.check1 ? '✓' : '-';
         const c2 = data.checklist.check2 ? '✓' : '-';
         const c3 = data.checklist.check3 ? '✓' : '-';
-        let csv = "data:text/csv;charset=utf-8,";
+        let csv = "\uFEFF";
         csv += `佳元松江社區｜工作日誌｜${logDate}\n\n`;
         csv += "一、社區動態\n項目,數量（戶）\n";
         csv += `總裝潢施作,${data.community.totalRenovation}\n本日申請裝潢,${data.community.newRenovation}\n本日裝潢驗退,${data.community.renovationRetired}\n裝潢總計（累計）,${data.community.totalRenovationAccum}\n已驗退戶（累計）,${data.community.totalRenovationRetiredAccum}\n\n`;
         csv += "二、社區基本數據\n項目,數值\n";
         csv += `地址,松江路252巷10號\n總戶數,${data.community.totalHouseholds}\n本日交屋戶數,${data.community.newMoveIn}\n\n`;
         csv += "三、人員編制\n職位,人員姓名,今日出勤,明日出勤,備註\n";
-        csv += `經理,${data.staff.managerName},"${data.staff.todayShift}","${data.staff.tomorrowShift}","${data.staff.shiftNotes}"\n\n`;
+        csv += `經理,${data.staff.managerName},${data.staff.todayShift},${data.staff.tomorrowShift},${data.staff.shiftNotes}\n\n`;
         csv += "四、每日清點\n項目,完成狀態\n";
         csv += `公共區域門窗安全檢查,${c1}\n無郵件及包裹點交,${c2}\n施工圍籬與施工車輛停放位置確認,${c3}\n\n`;
         csv += "五、今日工作事項\n";
-        data.tasks.forEach(task=>{ csv += `"${task}"\n`; });
+        data.tasks.forEach(task=>{ csv += `${task}\n`; });
         csv += "\n六、停車紀錄\n車牌號碼,戶別,入場時間,出場時間,停放時長(分鐘)\n";
         data.parking.forEach(r=>{
           csv += `${r.carPlate||''},${r.huBei||''},${r.entryTime||''},${r.exitTime||''},${r.duration||''}\n`;
         });
-        const uri = encodeURI(csv);
-        const a = document.createElement('a');
-        a.setAttribute('href', uri);
-        a.setAttribute('download', `佳元松江社區｜工作日誌｜${logDate.replace(/-/g,'')}.csv`);
-        document.body.appendChild(a); a.click(); a.remove();
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `佳元松江社區｜工作日誌｜${logDate.replace(/-/g,'')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       },
 
       exportToSheets(){
@@ -848,38 +696,81 @@
         }
       },
 
-      async appendDataToSheet(spreadsheetId){
-        const data = self?.document ? this.getFormData() : { date:'', community:{}, staff:{}, checklist:{}, tasks:[], parking:[] };
-        const logDate = data.date;
+      async appendDataToSheet(spreadsheetId) {
+        this.showToast('正在處理匯出...', 'success');
+        const data = this.getFormData();
+        const sheetTitle = data.date;
+        
+        if (!sheetTitle) {
+            this.showToast('無法獲取日期，無法建立工作表', 'error');
+            return;
+        }
 
-        const summaryValues = [[
-          logDate, data.community.totalRenovation, data.community.newRenovation,
-          data.community.renovationRetired, data.community.totalRenovationAccum,
-          data.community.totalRenovationRetiredAccum, data.community.newMoveIn,
-          data.staff.managerName, data.staff.todayShift, data.staff.tomorrowShift,
-          data.staff.shiftNotes, data.tasks.join('; ')
-        ]];
+        const valuesToWrite = [
+            [`佳元松江社區工作日誌 - 日期: ${sheetTitle}`],
+            [],
+            ["一、社區動態"],
+            ["項目", "本日數量", "累計數量"],
+            ["總裝潢施作戶數", data.community.totalRenovation, "-"],
+            ["本日申請裝潢", data.community.newRenovation, "-"],
+            ["本日裝潢驗退", data.community.renovationRetired, "-"],
+            ["裝潢總計", "-", data.community.totalRenovationAccum],
+            ["已驗退戶", "-", data.community.totalRenovationRetiredAccum],
+            ["本日交屋戶數", data.community.newMoveIn, "-"],
+            ["總戶數", data.community.totalHouseholds, "-"],
+            [],
+            ["二、人員編制"],
+            ["職位", "姓名", "今日出勤", "明日出勤", "備註"],
+            ["經理", data.staff.managerName, data.staff.todayShift, data.staff.tomorrowShift, data.staff.shiftNotes],
+            [],
+            ["三、每日清點"],
+            ["項目", "完成狀態"],
+            ["公共區域門窗安全檢查", data.checklist.check1 ? '完成' : '未完成'],
+            ["無郵件及包裹點交", data.checklist.check2 ? '完成' : '未完成'],
+            ["施工圍籬與施工車輛停放位置確認", data.checklist.check3 ? '完成' : '未完成'],
+            [],
+            ["四、今日工作事項"],
+            ...data.tasks.map(task => [task]),
+            [],
+            ["五、停車紀錄"],
+            ["車牌號碼", "戶別", "入場時間", "出場時間", "停放時長(分鐘)"],
+            ...data.parking.map(p => [ p.carPlate || '', p.huBei || '', p.entryTime || '', p.exitTime || '', p.duration || '' ])
+        ];
 
-        const parkingValues = (data.parking||[]).map(p=>[
-          logDate, p.carPlate||'', p.huBei||'', p.entryTime||'', p.exitTime||'', p.duration||''
-        ]);
+        try {
+            const spreadsheet = await gapi.client.sheets.spreadsheets.get({ spreadsheetId });
+            const sheetExists = spreadsheet.result.sheets.some(
+                s => s.properties.title === sheetTitle
+            );
 
-        try{
-          const reqs = [];
-          reqs.push(gapi.client.sheets.spreadsheets.values.append({
-            spreadsheetId, range:'每日總覽!A1', valueInputOption:'USER_ENTERED', resource:{ values: summaryValues },
-          }));
-          if (parkingValues.length>0){
-            reqs.push(gapi.client.sheets.spreadsheets.values.append({
-              spreadsheetId, range:'停車詳細紀錄!A1', valueInputOption:'USER_ENTERED', resource:{ values: parkingValues },
-            }));
-          }
-          await Promise.all(reqs);
-          this.showToast(`成功將 ${logDate} 的日誌匯出至 Google Sheets！`);
-        }catch(err){
-          console.error('寫入 Google Sheets 失敗:', err);
-          const msg = (err && err.result && err.result.error && err.result.error.message) ? err.result.error.message : (err.message || '未知錯誤');
-          this.showToast(`匯出失敗: ${msg}`, 'error');
+            if (sheetExists) {
+                await gapi.client.sheets.spreadsheets.values.clear({
+                    spreadsheetId,
+                    range: sheetTitle
+                });
+                this.showToast('偵測到今日工作表，已清除舊資料...', 'success');
+            } else {
+                const addSheetRequest = { addSheet: { properties: { title: sheetTitle } } };
+                await gapi.client.sheets.spreadsheets.batchUpdate({
+                    spreadsheetId,
+                    resource: { requests: [addSheetRequest] }
+                });
+                this.showToast(`已成功建立新的工作表: ${sheetTitle}`, 'success');
+            }
+
+            await gapi.client.sheets.spreadsheets.values.update({
+                spreadsheetId,
+                range: `${sheetTitle}!A1`,
+                valueInputOption: 'USER_ENTERED',
+                resource: { values: valuesToWrite }
+            });
+
+            this.showToast(`成功將日誌匯出至工作表: ${sheetTitle}`, 'success');
+
+        } catch (err) {
+            console.error('寫入 Google Sheets 失敗:', err);
+            const msg = (err.result && err.result.error && err.result.error.message) ? err.result.error.message : '未知錯誤';
+            this.showToast(`匯出失敗: ${msg}`, 'error');
         }
       },
 
