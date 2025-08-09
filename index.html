@@ -5,14 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>佳元松江社區每日營運儀表板</title>
 
-  <!-- UI / Chart -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 
-  <!-- Google APIs (Sheets) + Google Identity Services -->
   <script async src="https://apis.google.com/js/api.js"></script>
   <script async src="https://accounts.google.com/gsi/client"></script>
 
@@ -661,40 +659,79 @@
         }
       },
 
-      async appendDataToSheet(spreadsheetId){
-        const data = this.getFormData();
-        const logDate = data.date;
+      // ##### START OF UPDATED CODE #####
+      async appendDataToSheet(spreadsheetId) {
+          const data = this.getFormData();
+          const logDate = data.date;
 
-        const summaryValues = [[
-          logDate, data.community.totalRenovation, data.community.newRenovation,
-          data.community.renovationRetired, data.community.totalRenovationAccum,
-          data.community.totalRenovationRetiredAccum, data.community.newMoveIn,
-          data.staff.managerName, data.staff.todayShift, data.staff.tomorrowShift,
-          data.staff.shiftNotes, data.tasks.join('; ')
-        ]];
+          // 建立一個更結構化的資料陣列，包含標題和對應的資料
+          const valuesToAppend = [
+              // --- Section: 日期標頭 ---
+              [`佳元松江社區工作日誌 - 日期: ${logDate}`],
+              [], // 留一空白行以利閱讀
 
-        const parkingValues = data.parking.map(p=>[
-          logDate, p.carPlate||'', p.huBei||'', p.entryTime||'', p.exitTime||'', p.duration||''
-        ]);
+              // --- Section: 社區動態 ---
+              ["一、社區動態"],
+              ["項目", "本日數量", "累計數量"],
+              ["總裝潢施作戶數", data.community.totalRenovation, "-"],
+              ["本日申請裝潢", data.community.newRenovation, "-"],
+              ["本日裝潢驗退", data.community.renovationRetired, "-"],
+              ["裝潢總計", "-", data.community.totalRenovationAccum],
+              ["已驗退戶", "-", data.community.totalRenovationRetiredAccum],
+              ["本日交屋戶數", data.community.newMoveIn, "-"],
+              ["總戶數", data.community.totalHouseholds, "-"],
+              [], // 空白行
 
-        try{
-          const reqs = [];
-          reqs.push(gapi.client.sheets.spreadsheets.values.append({
-            spreadsheetId, range:'每日總覽!A1', valueInputOption:'USER_ENTERED', resource:{ values: summaryValues },
-          }));
-          if (parkingValues.length>0){
-            reqs.push(gapi.client.sheets.spreadsheets.values.append({
-              spreadsheetId, range:'停車詳細紀錄!A1', valueInputOption:'USER_ENTERED', resource:{ values: parkingValues },
-            }));
+              // --- Section: 人員編制 ---
+              ["二、人員編制"],
+              ["職位", "姓名", "今日出勤", "明日出勤", "備註"],
+              ["經理", data.staff.managerName, data.staff.todayShift, data.staff.tomorrowShift, data.staff.shiftNotes],
+              [], // 空白行
+
+              // --- Section: 每日清點 ---
+              ["三、每日清點"],
+              ["項目", "完成狀態"],
+              ["公共區域門窗安全檢查", data.checklist.check1 ? '完成' : '未完成'],
+              ["無郵件及包裹點交", data.checklist.check2 ? '完成' : '未完成'],
+              ["施工圍籬與施工車輛停放位置確認", data.checklist.check3 ? '完成' : '未完成'],
+              [], // 空白行
+
+              // --- Section: 今日工作事項 ---
+              ["四、今日工作事項"],
+              ...data.tasks.map(task => [task]), // 將每個任務項目轉換成獨立一列
+              [], // 空白行
+
+              // --- Section: 停車紀錄 ---
+              ["五、停車紀錄"],
+              ["車牌號碼", "戶別", "入場時間", "出場時間", "停放時長(分鐘)"],
+              ...data.parking.map(p => [
+                  p.carPlate || '',
+                  p.huBei || '',
+                  p.entryTime || '',
+                  p.exitTime || '',
+                  p.duration || ''
+              ])
+          ];
+
+          try {
+              // 將整理好的所有資料一次性附加到 "每日總覽" 工作表中
+              await gapi.client.sheets.spreadsheets.values.append({
+                  spreadsheetId,
+                  range: '每日總覽!A1', // 從 A1 儲存格開始附加資料
+                  valueInputOption: 'USER_ENTERED',
+                  resource: {
+                      values: valuesToAppend
+                  },
+              });
+
+              this.showToast(`成功將 ${logDate} 的日誌匯出至 Google Sheets！`);
+          } catch (err) {
+              console.error('寫入 Google Sheets 失敗:', err);
+              const msg = (err && err.result && err.result.error && err.result.error.message) ? err.result.error.message : (err.message || '未知錯誤');
+              this.showToast(`匯出失敗: ${msg}`, 'error');
           }
-          await Promise.all(reqs);
-          this.showToast(`成功將 ${logDate} 的日誌匯出至 Google Sheets！`);
-        }catch(err){
-          console.error('寫入 Google Sheets 失敗:', err);
-          const msg = (err && err.result && err.result.error && err.result.error.message) ? err.result.error.message : (err.message || '未知錯誤');
-          this.showToast(`匯出失敗: ${msg}`, 'error');
-        }
       },
+      // ##### END OF UPDATED CODE #####
 
       showToast(msg,type='success'){
         this.elements.toast.textContent = msg;
