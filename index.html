@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 
-  <!-- Google APIs (Sheets) + Google Identity Services（不綁 onload，改程式等待） -->
+  <!-- Google APIs (Sheets) + Google Identity Services -->
   <script async src="https://apis.google.com/js/api.js"></script>
   <script async src="https://accounts.google.com/gsi/client"></script>
 
@@ -116,14 +116,6 @@
             <div><label class="block mb-2">今日出勤</label><input type="text" id="todayShift" class="form-input" value="早班 08:00–17:00"></div>
             <div><label class="block mb-2">明日出勤</label><input type="text" id="tomorrowShift" class="form-input" value="休假"></div>
             <div><label class="block mb-2">備註</label><textarea id="shiftNotes" class="form-input" rows="4">兼任保全巡場、門禁與安檢工作</textarea></div>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <h2 class="text-2xl font-semibold mb-4 text-[#00A6A6]">Google Sheets 匯出設定</h2>
-          <div>
-            <label class="block mb-2">目標 Google Sheet ID</label>
-            <input type="text" id="spreadsheet-id" class="form-input" placeholder="請貼上您的 Google Sheet ID">
           </div>
         </div>
 
@@ -239,9 +231,8 @@
     // 管理員（UID 白名單）
     const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1"];
 
-    // 預設 Sheet ID + 本機記憶鍵
+    // --- 固定 Google Sheet ID（不再顯示/輸入） ---
     const DEFAULT_SHEET_ID = "1DwcrgFncaocK3fil-lT-j5InTV7NwlBjEZjDF_OuhFU";
-    const LS_KEY_SHEET = "jy_sheet_id";
 
     // --- Google APIs (Sheets) ---
     const GOOGLE_API_KEY = "AIzaSyAF90JqId5m1BRfdtc7TlTKWnYI_o5dQAs";
@@ -262,46 +253,11 @@
         this.db = getFirestore(app);
 
         this.cacheDOMElements();
-        this.loadPrefs();      // 讀 localStorage 或帶預設 ID
         this.bindEvents();
         this.initDateSelector();
         this.initChart();
         this.initAuthWatcher();
         this.waitGoogleApis();
-      },
-
-      // --------- 偏好設定（Sheet ID） ----------
-      savePrefs(){
-        const v = (this.elements.spreadsheetIdInput.value || '').trim();
-        if (v) localStorage.setItem(LS_KEY_SHEET, v);
-      },
-      loadPrefs(){
-        const v = localStorage.getItem(LS_KEY_SHEET);
-        this.elements.spreadsheetIdInput.value = v || DEFAULT_SHEET_ID;
-      },
-      async loadSheetIdFromFirestore(){
-        try{
-          if (!this.user || this.user.isAnonymous) return;
-          if (!ADMIN_UIDS.includes(this.user.uid)) return;
-          const cfgRef = doc(this.db, 'app_config', 'sheets');
-          const snap = await getDoc(cfgRef);
-          if (snap.exists()){
-            const id = (snap.data().spreadsheetId || '').trim();
-            if (id){
-              this.elements.spreadsheetIdInput.value = id;
-              this.savePrefs(); // 同步回本機
-            }
-          }
-        }catch(e){ console.warn('讀取雲端 Sheet 設定失敗', e); }
-      },
-      async saveSheetIdToFirestore(){
-        try{
-          if (!this.user || this.user.isAnonymous) return;
-          if (!ADMIN_UIDS.includes(this.user.uid)) return;
-          const id = (this.elements.spreadsheetIdInput.value || '').trim();
-          if (!id) return;
-          await setDoc(doc(this.db, 'app_config', 'sheets'), { spreadsheetId: id }, { merge: true });
-        }catch(e){ console.warn('儲存雲端 Sheet 設定失敗', e); }
       },
 
       cacheDOMElements(){
@@ -315,7 +271,6 @@
           displayDate:document.getElementById('displayDate'),
           prevDayBtn:document.getElementById('prev-day-btn'),
           nextDayBtn:document.getElementById('next-day-btn'),
-          spreadsheetIdInput:document.getElementById('spreadsheet-id'),
           exportToSheetsBtn:document.getElementById('export-to-sheets-btn'),
         };
       },
@@ -329,11 +284,6 @@
             provider.setCustomParameters({ prompt:'select_account' });
             await signInWithPopup(this.auth, provider);
           }catch(e){ console.error('Google 登入錯誤:', e); }
-        });
-
-        this.elements.spreadsheetIdInput.addEventListener('input', ()=>{
-          this.savePrefs();
-          this.saveSheetIdToFirestore(); // 管理員時同步上雲
         });
 
         this.elements.dateSelector.addEventListener('change', (e)=> this.fetchLogByDate(e.target.value));
@@ -368,7 +318,7 @@
       initAuthWatcher(){
         this.elements.userStatus.innerText = '正在載入 Google API...';
 
-        onAuthStateChanged(this.auth, async (user)=>{
+        onAuthStateChanged(this.auth, (user)=>{
           console.log('[DEBUG] uid=', user?.uid, 'email=', user?.email);
           this.user = user || null;
           this.updateAuthUI();
@@ -382,8 +332,6 @@
             // 啟用日期選擇並讀取資料
             this.elements.dateSelector.disabled = false;
             this.elements.prevDayBtn.disabled = false;
-            // 管理員登入後，嘗試從雲端載入 Sheet ID
-            await this.loadSheetIdFromFirestore();
             this.fetchLogByDate(this.elements.dateSelector.value);
           }
         });
@@ -428,8 +376,7 @@
               scope: SCOPES,
               callback: async (tokenResponse)=>{
                 if (tokenResponse && tokenResponse.access_token) {
-                  const spreadsheetId = this.elements.spreadsheetIdInput.value.trim();
-                  await this.appendDataToSheet(spreadsheetId);
+                  await this.appendDataToSheet(DEFAULT_SHEET_ID); // 直接用常數
                 } else {
                   this.showToast('Google 授權失敗或被取消。','error');
                 }
@@ -704,21 +651,17 @@
       },
 
       exportToSheets(){
-        this.savePrefs(); // 先存一次（避免只貼不觸發 input）
-        const spreadsheetId = this.elements.spreadsheetIdInput.value.trim();
-        if (!spreadsheetId) return this.showToast('請先輸入目標 Google Sheet 的 ID！','error');
         if (!this.gapiReady || !this.gisReady) return this.showToast('Google API 尚未準備就緒，請稍後再試。','error');
 
         const token = gapi.client.getToken();
         if (!token) {
           this.tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
-          this.appendDataToSheet(spreadsheetId);
+          this.appendDataToSheet(DEFAULT_SHEET_ID); // 直接用常數
         }
       },
 
       async appendDataToSheet(spreadsheetId){
-        this.savePrefs(); // 再存一次，保險
         const data = this.getFormData();
         const logDate = data.date;
 
