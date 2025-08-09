@@ -88,8 +88,10 @@
 
         <div class="form-section">
           <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">停車紀錄</h2>
-          <div id="parking-records-container" class="space-y-4"></div>
-          <button id="add-parking-record-btn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增停車紀錄</button>
+          <div id="parking-records-container" class="space-y-2 text-gray-600">
+            </div>
+          <input type="file" id="csv-file-input" class="hidden" accept=".csv">
+          <button id="import-csv-btn" class="mt-4 btn-primary">從 CSV 匯入停車紀錄</button>
         </div>
 
         <div class="form-section">
@@ -242,7 +244,8 @@
     const App = {
       db:null, auth:null, user:null,
       gapiReady:false, gisReady:false, tokenClient:null,
-      renovationChart:null, taskCount:0, parkingRecordCount:0,
+      renovationChart:null, taskCount:0,
+      parkingData: [],
       elements:{},
 
       init(){
@@ -270,6 +273,9 @@
           prevDayBtn:document.getElementById('prev-day-btn'),
           nextDayBtn:document.getElementById('next-day-btn'),
           exportToSheetsBtn:document.getElementById('export-to-sheets-btn'),
+          importCsvBtn: document.getElementById('import-csv-btn'),
+          csvFileInput: document.getElementById('csv-file-input'),
+          parkingRecordsContainer: document.getElementById('parking-records-container'),
         };
       },
 
@@ -292,9 +298,15 @@
 
         document.getElementById('generate-csv-btn').addEventListener('click', ()=> this.generateCsv());
         document.getElementById('addTaskBtn').addEventListener('click', ()=> this.addTask());
-        document.getElementById('add-parking-record-btn').addEventListener('click', ()=> this.addParkingRecord());
-        document.querySelectorAll('#input-form input, #input-form textarea').forEach(input=>{
+        
+        this.elements.importCsvBtn.addEventListener('click', () => this.elements.csvFileInput.click());
+        this.elements.csvFileInput.addEventListener('change', (e) => this.handleCsvImport(e));
+
+        document.querySelectorAll('#input-form input[type="text"], #input-form input[type="number"], #input-form textarea').forEach(input=>{
           input.addEventListener('input', ()=> this.updateDashboardFromForm());
+        });
+         document.querySelectorAll('#input-form input[type="checkbox"]').forEach(input=>{
+          input.addEventListener('change', ()=> this.updateDashboardFromForm());
         });
       },
 
@@ -321,13 +333,11 @@
           this.user = user || null;
           this.updateAuthUI();
           if (!user) {
-            // 未登入 → 匿名登入（訪客可讀）
             signInAnonymously(this.auth).catch(err=>{
               console.error('匿名登入失敗:', err);
               this.elements.userStatus.innerText = "錯誤：無法連接至資料庫";
             });
           } else {
-            // 啟用日期選擇並讀取資料
             this.elements.dateSelector.disabled = false;
             this.elements.prevDayBtn.disabled = false;
             this.fetchLogByDate(this.elements.dateSelector.value);
@@ -355,7 +365,6 @@
         }
       },
 
-      // ---- Google API 初始化（等待載入，避免 onload 競態） ----
       waitGoogleApis(){
         const waitFor = (cond, cb)=>{ const t=setInterval(()=>{ if(cond()){clearInterval(t); cb();}},50); };
         waitFor(()=> window.gapi && window.gapi.load, ()=>{
@@ -374,7 +383,7 @@
               scope: SCOPES,
               callback: async (tokenResponse)=>{
                 if (tokenResponse && tokenResponse.access_token) {
-                  await this.appendDataToSheet(DEFAULT_SHEET_ID); // 直接用常數
+                  await this.appendDataToSheet(DEFAULT_SHEET_ID);
                 } else {
                   this.showToast('Google 授權失敗或被取消。','error');
                 }
@@ -422,7 +431,7 @@
             this.updateDashboard(data);
             if (isAdmin) this.updateInputForm(data);
           } else {
-            const defaultData = this.getFormData();
+            const defaultData = this.getFormData(); // Get default structure
             this.updateDashboard(defaultData);
             if (isAdmin) this.clearInputForm();
           }
@@ -433,6 +442,66 @@
         }finally{
           this.updateDateNavButtonsState();
         }
+      },
+      
+      handleCsvImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target.result;
+            const rows = text.trim().split(/\r?\n/).slice(1);
+            
+            this.parkingData = rows.map(row => {
+                const columns = row.split(',');
+                if (columns.length < 5) return null;
+                return {
+                    carPlate: columns[0].trim(),
+                    huBei: columns[1].trim(),
+                    entryTime: columns[2].trim(),
+                    exitTime: columns[3].trim(),
+                    duration: columns[4].trim()
+                };
+            }).filter(Boolean);
+
+            this.showToast(`成功匯入 ${this.parkingData.length} 筆停車紀錄`, 'success');
+            this.renderParkingData();
+            this.updateDashboardFromForm();
+        };
+        reader.onerror = () => this.showToast('讀取檔案失敗', 'error');
+        reader.readAsText(file, 'UTF-8');
+        event.target.value = '';
+      },
+      
+      renderParkingData() {
+        this.elements.parkingRecordsContainer.innerHTML = '';
+        if (this.parkingData.length === 0) {
+            this.elements.parkingRecordsContainer.innerHTML = '<p>尚未匯入停車紀錄。</p>';
+        } else {
+            const list = document.createElement('ul');
+            list.className = 'list-disc list-inside space-y-1';
+            this.parkingData.forEach(r => {
+                const item = document.createElement('li');
+                item.textContent = `車牌: ${r.carPlate}, 戶別: ${r.huBei}, 時間: ${r.entryTime} - ${r.exitTime}`;
+                list.appendChild(item);
+            });
+            this.elements.parkingRecordsContainer.appendChild(list);
+        }
+
+        const parkingBody = document.getElementById('parking-table-body');
+        parkingBody.innerHTML = '';
+        this.parkingData.forEach(r => {
+            parkingBody.insertAdjacentHTML('beforeend', `
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration || '-'}</td>
+              </tr>
+            `);
+        });
       },
 
       getFormData(){
@@ -452,19 +521,14 @@
         const check2 = document.getElementById('check2').checked;
         const check3 = document.getElementById('check3').checked;
         const tasks = Array.from(document.querySelectorAll('#tasks-container input')).map(el=>el.value).filter(v=>v.trim()!=='');
-        const parkingRecords = [];
-        document.querySelectorAll('#parking-records-container > div').forEach(div=>{
-          const record = {};
-          div.querySelectorAll('.parking-input').forEach(input=>{ record[input.dataset.field] = input.value; });
-          if (Object.values(record).some(v=>v)) parkingRecords.push(record);
-        });
+        
         return {
           date,
           community:{ totalRenovation,newRenovation,renovationRetired,totalRenovationAccum,totalRenovationRetiredAccum,newMoveIn,totalHouseholds },
           checklist:{ check1,check2,check3 },
           tasks,
           staff:{ managerName,todayShift,tomorrowShift,shiftNotes },
-          parking: parkingRecords
+          parking: this.parkingData
         };
       },
 
@@ -504,20 +568,9 @@
         const tasksBody = document.getElementById('tasks-table-body');
         tasksBody.innerHTML='';
         (data.tasks||[]).forEach(task=>{ if(task) tasksBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td></tr>`); });
-
-        const parkingBody = document.getElementById('parking-table-body');
-        parkingBody.innerHTML='';
-        (data.parking||[]).forEach(r=>{
-          parkingBody.insertAdjacentHTML('beforeend', `
-            <tr>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate||'-'}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei||'-'}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime||'-'}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime||'-'}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration||'-'}</td>
-            </tr>
-          `);
-        });
+        
+        this.parkingData = data.parking || [];
+        this.renderParkingData();
 
         if (this.renovationChart){
           const retired = parseInt(data.community.totalRenovationRetiredAccum) || 0;
@@ -548,17 +601,18 @@
         tasksContainer.innerHTML=''; this.taskCount=0;
         (data.tasks||[]).forEach(task=> this.addTask(task));
         if ((data.tasks||[]).length===0) this.addTask();
-
-        const parkingContainer = document.getElementById('parking-records-container');
-        parkingContainer.innerHTML=''; this.parkingRecordCount=0;
-        (data.parking||[]).forEach(rec=> this.addParkingRecord(rec));
-        if ((data.parking||[]).length===0) this.addParkingRecord();
+        
+        this.parkingData = data.parking || [];
+        this.renderParkingData();
       },
 
       clearInputForm(){
-        document.querySelectorAll('#input-form input, #input-form textarea').forEach(el=>{ el.type==='checkbox' ? el.checked=false : el.value=''; });
+        document.querySelectorAll('#input-form input[type="text"], #input-form input[type="number"], #input-form textarea').forEach(el=>{ el.value=''; });
+        document.querySelectorAll('#input-form input[type="checkbox"]').forEach(el => { el.checked = false; });
         const t = document.getElementById('tasks-container'); t.innerHTML=''; this.taskCount=0; this.addTask();
-        const p = document.getElementById('parking-records-container'); p.innerHTML=''; this.parkingRecordCount=0; this.addParkingRecord();
+        
+        this.parkingData = [];
+        this.renderParkingData();
       },
 
       updateDashboardFromForm(){ this.updateDashboard(this.getFormData()); },
@@ -567,41 +621,9 @@
         const c = document.getElementById('tasks-container');
         const i = this.taskCount++;
         const div = document.createElement('div');
-        div.innerHTML = `<label class="block mb-2">事項 ${i+1}</label><input type="text" class="form-input" value="${val}">`;
+        div.className = 'flex items-center space-x-2';
+        div.innerHTML = `<input type="text" class="form-input w-full" value="${val}" placeholder="新增事項 ${i+1}">`;
         div.querySelector('input').addEventListener('input', ()=> this.updateDashboardFromForm());
-        c.appendChild(div);
-      },
-
-      addParkingRecord(record={}){
-        const c = document.getElementById('parking-records-container');
-        const div = document.createElement('div');
-        div.className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-t pt-4";
-        div.innerHTML = `
-          <div><label class="block mb-2">車牌號碼</label><input type="text" class="form-input parking-input" data-field="carPlate" value="${record.carPlate||''}"></div>
-          <div><label class="block mb-2">戶別</label><input type="text" class="form-input parking-input" data-field="huBei" value="${record.huBei||''}"></div>
-          <div><label class="block mb-2">入場時間</label><input type="time" class="form-input parking-input" data-field="entryTime" value="${record.entryTime||''}"></div>
-          <div><label class="block mb-2">出場時間</label><input type="time" class="form-input parking-input" data-field="exitTime" value="${record.exitTime||''}"></div>
-          <div><label class="block mb-2">停放時長(分鐘)</label><input type="number" class="form-input parking-input bg-gray-200" data-field="duration" value="${record.duration||''}" readonly></div>
-        `;
-        const entry = div.querySelector('[data-field="entryTime"]');
-        const exit = div.querySelector('[data-field="exitTime"]');
-        const dur = div.querySelector('[data-field="duration"]');
-
-        const calc = ()=>{
-          if (entry.value && exit.value){
-            const e1 = new Date(`1970-01-01T${entry.value}:00`);
-            const e2 = new Date(`1970-01-01T${exit.value}:00`);
-            let diff = (e2.getTime() - e1.getTime())/60000;
-            if (diff < 0) diff += 24*60;
-            dur.value = Math.round(diff);
-          }else{ dur.value=''; }
-          this.updateDashboardFromForm();
-        };
-        entry.addEventListener('change', calc); exit.addEventListener('change', calc);
-        div.querySelectorAll('input').forEach(inp=>{
-          if (['entryTime','exitTime'].includes(inp.dataset.field)) return;
-          inp.addEventListener('input', ()=> this.updateDashboardFromForm());
-        });
         c.appendChild(div);
       },
 
@@ -625,7 +647,7 @@
         const c1 = data.checklist.check1 ? '✓' : '-';
         const c2 = data.checklist.check2 ? '✓' : '-';
         const c3 = data.checklist.check3 ? '✓' : '-';
-        let csv = "data:text/csv;charset=utf-8,";
+        let csv = "\uFEFF"; // BOM for UTF-8
         csv += `佳元松江社區｜工作日誌｜${logDate}\n\n`;
         csv += "一、社區動態\n項目,數量（戶）\n";
         csv += `總裝潢施作,${data.community.totalRenovation}\n本日申請裝潢,${data.community.newRenovation}\n本日裝潢驗退,${data.community.renovationRetired}\n裝潢總計（累計）,${data.community.totalRenovationAccum}\n已驗退戶（累計）,${data.community.totalRenovationRetiredAccum}\n\n`;
@@ -641,11 +663,15 @@
         data.parking.forEach(r=>{
           csv += `${r.carPlate||''},${r.huBei||''},${r.entryTime||''},${r.exitTime||''},${r.duration||''}\n`;
         });
-        const uri = encodeURI(csv);
-        const a = document.createElement('a');
-        a.setAttribute('href', uri);
-        a.setAttribute('download', `佳元松江社區｜工作日誌｜${logDate.replace(/-/g,'')}.csv`);
-        document.body.appendChild(a); a.click(); a.remove();
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `佳元松江社區｜工作日誌｜${logDate.replace(/-/g,'')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       },
 
       exportToSheets(){
@@ -655,22 +681,20 @@
         if (!token) {
           this.tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
-          this.appendDataToSheet(DEFAULT_SHEET_ID); // 直接用常數
+          this.appendDataToSheet(DEFAULT_SHEET_ID);
         }
       },
 
-      // ##### START OF UPDATED CODE #####
       async appendDataToSheet(spreadsheetId) {
         this.showToast('正在處理匯出...', 'success');
         const data = this.getFormData();
-        const sheetTitle = data.date; // 使用日期作為工作表標題, e.g., "2025-08-09"
+        const sheetTitle = data.date;
         
         if (!sheetTitle) {
             this.showToast('無法獲取日期，無法建立工作表', 'error');
             return;
         }
 
-        // 準備要寫入的資料 (與之前相同)
         const valuesToWrite = [
             [`佳元松江社區工作日誌 - 日期: ${sheetTitle}`],
             [],
@@ -703,26 +727,19 @@
         ];
 
         try {
-            // 1. 檢查工作表是否已存在
             const spreadsheet = await gapi.client.sheets.spreadsheets.get({ spreadsheetId });
             const sheetExists = spreadsheet.result.sheets.some(
                 s => s.properties.title === sheetTitle
             );
 
             if (sheetExists) {
-                // 2a. 如果存在，先清除舊資料
                 await gapi.client.sheets.spreadsheets.values.clear({
                     spreadsheetId,
                     range: sheetTitle
                 });
                 this.showToast('偵測到今日工作表，已清除舊資料...', 'success');
             } else {
-                // 2b. 如果不存在，建立新的工作表
-                const addSheetRequest = {
-                    addSheet: {
-                        properties: { title: sheetTitle }
-                    }
-                };
+                const addSheetRequest = { addSheet: { properties: { title: sheetTitle } } };
                 await gapi.client.sheets.spreadsheets.batchUpdate({
                     spreadsheetId,
                     resource: { requests: [addSheetRequest] }
@@ -730,10 +747,9 @@
                 this.showToast(`已成功建立新的工作表: ${sheetTitle}`, 'success');
             }
 
-            // 3. 將資料寫入指定的工作表
             await gapi.client.sheets.spreadsheets.values.update({
                 spreadsheetId,
-                range: `${sheetTitle}!A1`, // 指定從A1開始寫入
+                range: `${sheetTitle}!A1`,
                 valueInputOption: 'USER_ENTERED',
                 resource: { values: valuesToWrite }
             });
@@ -746,7 +762,6 @@
             this.showToast(`匯出失敗: ${msg}`, 'error');
         }
       },
-      // ##### END OF UPDATED CODE #####
 
       showToast(msg,type='success'){
         this.elements.toast.textContent = msg;
