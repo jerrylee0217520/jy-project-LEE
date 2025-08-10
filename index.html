@@ -112,7 +112,7 @@
 
         <div class="text-center space-x-4 mt-6">
           <button id="save-log-btn" class="btn-primary">儲存日誌</button>
-          <button id="export-to-sheets-btn" class="btn-primary">匯出至 Google Sheets</button>
+          <button id="export-to-sheets-btn" class="btn-primary" disabled>匯出至 Google Sheets</button>
           <button id="generate-csv-btn" class="btn-primary">產生 CSV (備用)</button>
         </div>
       </main>
@@ -263,6 +263,21 @@
           importCsvBtn: document.getElementById('import-csv-btn'),
           csvFileInput: document.getElementById('csv-file-input'),
           parkingRecordsDisplayInput: document.getElementById('parking-records-display-input'),
+          totalRenovation: document.getElementById('totalRenovation'),
+          newRenovation: document.getElementById('newRenovation'),
+          renovationRetired: document.getElementById('renovationRetired'),
+          totalRenovationAccum: document.getElementById('totalRenovationAccum'),
+          totalRenovationRetiredAccum: document.getElementById('totalRenovationRetiredAccum'),
+          newMoveIn: document.getElementById('newMoveIn'),
+          totalHouseholds: document.getElementById('totalHouseholds'),
+          check1: document.getElementById('check1'),
+          check2: document.getElementById('check2'),
+          check3: document.getElementById('check3'),
+          tasksContainer: document.getElementById('tasks-container'),
+          managerName: document.getElementById('managerName'),
+          todayShift: document.getElementById('todayShift'),
+          tomorrowShift: document.getElementById('tomorrowShift'),
+          shiftNotes: document.getElementById('shiftNotes'),
         };
       },
 
@@ -315,14 +330,13 @@
       initAuthWatcher(){
         this.elements.userStatus.innerText = '正在初始化...';
 
-        onAuthStateChanged(this.auth, async (user)=>{
+        onAuthStateChanged(this.auth, async (user) => {
           this.user = user;
-
+          
           if (user) {
             console.log("登入成功，使用者 UID:", user.uid);
             this.elements.userStatus.innerText = '正在驗證權限...';
 
-            // 處理非匿名使用者
             if (!user.isAnonymous) {
               try {
                 const isAdmin = await this.checkAdminStatus(user.uid);
@@ -333,11 +347,9 @@
                 this.updateAuthUI(false);
               }
             } else {
-              // 處理匿名使用者
               this.updateAuthUI(false);
             }
           } else {
-            // 登出或未登入狀態，執行匿名登入
             console.log("已登出，使用者 UID: 無");
             this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
             try {
@@ -346,12 +358,14 @@
               console.error('匿名登入失敗:', err);
               this.elements.userStatus.innerText = "錯誤：無法連接至資料庫";
             }
+            this.updateAuthUI(false);
           }
-          // 不論是否為管理員，都啟用日期選擇器和載入資料
-          this.elements.dateSelector.disabled = false;
-          this.elements.prevDayBtn.disabled = false;
-          this.elements.nextDayBtn.disabled = false;
-          this.fetchLogByDate(this.elements.dateSelector.value);
+          if (user) {
+              this.elements.dateSelector.disabled = false;
+              this.elements.prevDayBtn.disabled = false;
+              this.elements.nextDayBtn.disabled = false;
+              this.fetchLogByDate(this.elements.dateSelector.value);
+          }
         });
       },
 
@@ -581,21 +595,27 @@
 
       getFormData(){
         const date = this.elements.dateSelector.value;
-        const totalRenovation = document.getElementById('totalRenovation').value;
-        const newRenovation = document.getElementById('newRenovation').value;
-        const renovationRetired = document.getElementById('renovationRetired').value;
-        const totalRenovationAccum = document.getElementById('totalRenovationAccum').value;
-        const totalRenovationRetiredAccum = document.getElementById('totalRenovationRetiredAccum').value;
-        const newMoveIn = document.getElementById('newMoveIn').value;
-        const totalHouseholds = document.getElementById('totalHouseholds').value;
-        const managerName = document.getElementById('managerName').value;
-        const todayShift = document.getElementById('todayShift').value;
-        const tomorrowShift = document.getElementById('tomorrowShift').value;
-        const shiftNotes = document.getElementById('shiftNotes').value;
-        const check1 = document.getElementById('check1').checked;
-        const check2 = document.getElementById('check2').checked;
-        const check3 = document.getElementById('check3').checked;
-        const tasks = Array.from(document.querySelectorAll('#tasks-container input')).map(el=>el.value).filter(v=>v.trim()!=='');
+        
+        const getVal = (el) => el && el.value ? el.value : '';
+        const getChecked = (el) => el && el.checked ? el.checked : false;
+
+        const totalRenovation = getVal(this.elements.totalRenovation);
+        const newRenovation = getVal(this.elements.newRenovation);
+        const renovationRetired = getVal(this.elements.renovationRetired);
+        const totalRenovationAccum = getVal(this.elements.totalRenovationAccum);
+        const totalRenovationRetiredAccum = getVal(this.elements.totalRenovationRetiredAccum);
+        const newMoveIn = getVal(this.elements.newMoveIn);
+        const totalHouseholds = getVal(this.elements.totalHouseholds);
+        const check1 = getChecked(this.elements.check1);
+        const check2 = getChecked(this.elements.check2);
+        const check3 = getChecked(this.elements.check3);
+        
+        const tasks = this.elements.tasksContainer ? Array.from(this.elements.tasksContainer.querySelectorAll('input')).map(el=>el.value).filter(v=>v.trim()!=='') : [];
+        
+        const managerName = this.elements.managerName ? getVal(this.elements.managerName) : '';
+        const todayShift = this.elements.todayShift ? getVal(this.elements.todayShift) : '';
+        const tomorrowShift = this.elements.tomorrowShift ? getVal(this.elements.tomorrowShift) : '';
+        const shiftNotes = this.elements.shiftNotes ? getVal(this.elements.shiftNotes) : '';
 
         const parkingFromState = Array.isArray(this.parkingData) && this.parkingData.length > 0
           ? this.parkingData
@@ -676,22 +696,22 @@
 
       updateInputForm(data){
         if(!data) return;
-        document.getElementById('totalRenovation').value = data.community.totalRenovation || '';
-        document.getElementById('newRenovation').value = data.community.newRenovation || '';
-        document.getElementById('renovationRetired').value = data.community.renovationRetired || '';
-        document.getElementById('totalRenovationAccum').value = data.community.totalRenovationAccum || '';
-        document.getElementById('totalRenovationRetiredAccum').value = data.community.totalRenovationRetiredAccum || '';
-        document.getElementById('newMoveIn').value = data.community.newMoveIn || '';
-        document.getElementById('totalHouseholds').value = data.community.totalHouseholds || '';
-        document.getElementById('check1').checked = data.checklist.check1 || false;
-        document.getElementById('check2').checked = data.checklist.check2 || false;
-        document.getElementById('check3').checked = data.checklist.check3 || false;
-        document.getElementById('managerName').value = data.staff.managerName || '';
-        document.getElementById('todayShift').value = data.staff.todayShift || '';
-        document.getElementById('tomorrowShift').value = data.staff.tomorrowShift || '';
-        document.getElementById('shiftNotes').value = data.staff.shiftNotes || '';
+        this.elements.totalRenovation.value = data.community.totalRenovation || '';
+        this.elements.newRenovation.value = data.community.newRenovation || '';
+        this.elements.renovationRetired.value = data.community.renovationRetired || '';
+        this.elements.totalRenovationAccum.value = data.community.totalRenovationAccum || '';
+        this.elements.totalRenovationRetiredAccum.value = data.community.totalRenovationRetiredAccum || '';
+        this.elements.newMoveIn.value = data.community.newMoveIn || '';
+        this.elements.totalHouseholds.value = data.community.totalHouseholds || '';
+        this.elements.check1.checked = data.checklist.check1 || false;
+        this.elements.check2.checked = data.checklist.check2 || false;
+        this.elements.check3.checked = data.checklist.check3 || false;
+        this.elements.managerName.value = data.staff.managerName || '';
+        this.elements.todayShift.value = data.staff.todayShift || '';
+        this.elements.tomorrowShift.value = data.staff.tomorrowShift || '';
+        this.elements.shiftNotes.value = data.staff.shiftNotes || '';
 
-        const tasksContainer = document.getElementById('tasks-container');
+        const tasksContainer = this.elements.tasksContainer;
         tasksContainer.innerHTML=''; this.taskCount=0;
         (data.tasks||[]).forEach(task=> this.addTask(task));
         if ((data.tasks||[]).length===0) this.addTask();
@@ -713,9 +733,29 @@
       },
 
       clearInputForm(){
-        document.querySelectorAll('#input-form input[type="text"], #input-form input[type="number"], #input-form textarea').forEach(el=>{ el.value=''; });
-        document.querySelectorAll('#input-form input[type="checkbox"]').forEach(el => { el.checked = false; });
-        const t = document.getElementById('tasks-container'); t.innerHTML=''; this.taskCount=0; this.addTask();
+        const getEl = (id) => this.elements[id];
+        const clearVal = (el) => { if(el) el.value = ''; };
+        const clearChecked = (el) => { if(el) el.checked = false; };
+        
+        clearVal(getEl('totalRenovation'));
+        clearVal(getEl('newRenovation'));
+        clearVal(getEl('renovationRetired'));
+        clearVal(getEl('totalRenovationAccum'));
+        clearVal(getEl('totalRenovationRetiredAccum'));
+        clearVal(getEl('newMoveIn'));
+        clearVal(getEl('totalHouseholds'));
+        clearChecked(getEl('check1'));
+        clearChecked(getEl('check2'));
+        clearChecked(getEl('check3'));
+        clearVal(getEl('managerName'));
+        clearVal(getEl('todayShift'));
+        clearVal(getEl('tomorrowShift'));
+        clearVal(getEl('shiftNotes'));
+        
+        const tasksContainer = this.elements.tasksContainer; 
+        if (tasksContainer) {
+            tasksContainer.innerHTML=''; this.taskCount=0; this.addTask();
+        }
         
         this.parkingData = [];
         this.elements.parkingRecordsDisplayInput.innerHTML = '<p>請由此匯入今日停車紀錄 CSV 檔案。</p>';
@@ -724,7 +764,8 @@
       updateDashboardFromForm(){ this.updateDashboard(this.getFormData()); },
 
       addTask(val=''){
-        const c = document.getElementById('tasks-container');
+        const c = this.elements.tasksContainer;
+        if (!c) return; 
         const i = this.taskCount++;
         const div = document.createElement('div');
         div.className = 'flex items-center space-x-2';
@@ -781,7 +822,14 @@
       },
 
       exportToSheets(){
-        if (!this.gapiReady || !this.gisReady) return this.showToast('Google API 尚未準備就緒，請稍後再試。','error');
+        if (!this.gapiReady || !this.gisReady) {
+            return this.showToast('Google API 尚未準備就緒，請稍後再試。','error');
+        }
+        
+        const isAdmin = this.user && !this.user.isAnonymous && this.adminUids.includes(this.user.uid);
+        if (!isAdmin) {
+             return this.showToast('您沒有權限匯出至 Google Sheets！', 'error');
+        }
 
         const token = gapi.client.getToken();
         if (!token) {
