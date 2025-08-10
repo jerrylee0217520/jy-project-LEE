@@ -218,9 +218,6 @@
       appId: "1:640527461851:web:eed9f82d698275371fcbfe",
     };
 
-    // **已移除硬編碼的 ADMIN_UIDS 陣列，改為從 Firestore 讀取。**
-    // const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1", "8dYFqXhM4gVQr9MTEI5z3P4Xn9p2"];
-
     const STRICT_CSV_MODE = true;
 
     const DEFAULT_SHEET_ID = "1DwcrgFncaocK3fil-lT-j5InTV7NwlBjEZjDF_OuhFU";
@@ -236,7 +233,7 @@
       renovationChart:null, taskCount:0,
       parkingData: [],
       elements:{},
-      adminUids: [], // 新增：用於儲存從 Firestore 讀取到的管理員 UID
+      adminUids: [], 
 
       init(){
         const app = initializeApp(firebaseConfig);
@@ -277,7 +274,10 @@
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt:'select_account' });
             await signInWithPopup(this.auth, provider);
-          }catch(e){ console.error('Google 登入錯誤:', e); }
+          }catch(e){ 
+            console.error('Google 登入錯誤:', e); 
+            this.showToast('Google 登入失敗，請檢查網路連線或稍後再試。', 'error');
+          }
         });
 
         this.elements.dateSelector.addEventListener('change', (e)=> this.fetchLogByDate(e.target.value));
@@ -313,50 +313,45 @@
       },
 
       initAuthWatcher(){
-        this.elements.userStatus.innerText = '正在載入 Google API...';
+        this.elements.userStatus.innerText = '正在初始化...';
 
         onAuthStateChanged(this.auth, async (user)=>{
-          this.user = user || null;
-          
+          this.user = user;
+
           if (user) {
             console.log("登入成功，使用者 UID:", user.uid);
             this.elements.userStatus.innerText = '正在驗證權限...';
 
-            try {
-              const isAdmin = await this.checkAdminStatus(user.uid);
-              this.updateAuthUI(isAdmin);
-              // 登入且驗證為管理員後，才啟用日誌功能
-              if (isAdmin) {
-                this.elements.dateSelector.disabled = false;
-                this.elements.prevDayBtn.disabled = false;
-                this.elements.nextDayBtn.disabled = false;
-                this.fetchLogByDate(this.elements.dateSelector.value);
-              } else {
-                // 非管理員，顯示訪客介面
-                this.updateDashboard(null); // 清空儀表板
+            // 處理非匿名使用者
+            if (!user.isAnonymous) {
+              try {
+                const isAdmin = await this.checkAdminStatus(user.uid);
+                this.updateAuthUI(isAdmin);
+              } catch (error) {
+                console.error("驗證權限失敗：", error);
+                this.showToast('驗證權限失敗，請檢查網路連線或安全規則。','error');
+                this.updateAuthUI(false);
               }
-
-            } catch (error) {
-              console.error("驗證權限失敗：", error);
-              this.showToast('驗證權限失敗，請檢查網路連線或安全規則。','error');
+            } else {
+              // 處理匿名使用者
               this.updateAuthUI(false);
             }
           } else {
-            // 登出或匿名狀態
+            // 登出或未登入狀態，執行匿名登入
             console.log("已登出，使用者 UID: 無");
-            this.elements.dateSelector.disabled = true;
-            this.elements.prevDayBtn.disabled = true;
-            this.elements.nextDayBtn.disabled = true;
-
-            // 處理匿名登入
-            await signInAnonymously(this.auth).catch(err => {
+            this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
+            try {
+              await signInAnonymously(this.auth);
+            } catch (err) {
               console.error('匿名登入失敗:', err);
               this.elements.userStatus.innerText = "錯誤：無法連接至資料庫";
-            });
-
-            this.updateAuthUI(false);
-            this.fetchLogByDate(this.elements.dateSelector.value);
+            }
           }
+          // 不論是否為管理員，都啟用日期選擇器和載入資料
+          this.elements.dateSelector.disabled = false;
+          this.elements.prevDayBtn.disabled = false;
+          this.elements.nextDayBtn.disabled = false;
+          this.fetchLogByDate(this.elements.dateSelector.value);
         });
       },
 
@@ -386,7 +381,6 @@
             this.elements.inputForm.classList.add('hidden');
           }
         } else {
-          this.elements.userStatus.innerText = '訪客模式，登入以編輯日誌。';
           this.elements.authButton.innerText = '管理員登入';
           this.elements.inputForm.classList.add('hidden');
         }
@@ -442,12 +436,11 @@
       maybeApisReady(){
         if (this.gapiReady && this.gisReady) {
           this.showToast('Google API 準備就緒！');
-          // 啟用 Sheets 相關按鈕
           this.elements.exportToSheetsBtn.disabled = false;
           this.elements.exportToSheetsBtn.innerText = '匯出至 Google Sheets';
         }
       },
-
+      
       parseCSV(text){
         const rows=[]; let cur='', inQuotes=false, row=[];
         const pushCell=()=>{ row.push(cur); cur=''; };
@@ -518,7 +511,7 @@
         const reader = new FileReader();
         reader.onload = (e) => {
           let text = e.target.result || '';
-          if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // 去 BOM
+          if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
 
           const table = this.parseCSV(text).filter(r => r.length && r.join('').trim() !== '');
           if (table.length === 0) { this.showToast('CSV 內容為空', 'error'); return; }
@@ -883,7 +876,18 @@
         this.elements.toast.className = `toast-${type}`;
         this.elements.toast.classList.add('show');
         setTimeout(()=>{ this.elements.toast.classList.remove('show'); }, 3000);
-      }
+      },
+      
+      async fetchAdminUids() {
+          const adminsRef = collection(this.db, 'admins');
+          try {
+              const snapshot = await getDocs(adminsRef);
+              this.adminUids = snapshot.docs.map(doc => doc.id);
+          } catch (error) {
+              console.error("載入管理員清單失敗：", error);
+              this.showToast('載入管理員清單失敗，部分功能可能無法正常運作。', 'error');
+          }
+      },
     };
 
     document.addEventListener('DOMContentLoaded', ()=> App.init());
