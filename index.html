@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>佳元松江社區每日營運儀表板</title>
 
+  <!-- UI / Chart -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 
+  <!-- Google APIs (Sheets) + Google Identity Services -->
   <script async src="https://apis.google.com/js/api.js"></script>
   <script async src="https://accounts.google.com/gsi/client"></script>
 
@@ -94,6 +96,7 @@
           <input type="file" id="csv-file-input" class="hidden" accept=".csv">
           <button id="import-csv-btn" class="mt-4 btn-primary">從 CSV 匯入停車紀錄</button>
         </div>
+
         <div class="form-section">
           <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">每日清點</h2>
           <div class="space-y-2">
@@ -107,16 +110,6 @@
           <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">今日工作事項</h2>
           <div id="tasks-container" class="space-y-4"></div>
           <button id="addTaskBtn" class="mt-4 text-[#00A6A6] font-semibold">＋ 新增工作事項</button>
-        </div>
-
-        <div class="form-section">
-          <h2 class="text-2xl font-semibold mb-4 text-[#E55934]">人員編制</h2>
-          <div class="space-y-4">
-            <div><label class="block mb-2">經理姓名</label><input type="text" id="managerName" class="form-input" value="李俊煌"></div>
-            <div><label class="block mb-2">今日出勤</label><input type="text" id="todayShift" class="form-input" value="早班 08:00–17:00"></div>
-            <div><label class="block mb-2">明日出勤</label><input type="text" id="tomorrowShift" class="form-input" value="休假"></div>
-            <div><label class="block mb-2">備註</label><textarea id="shiftNotes" class="form-input" rows="4">兼任保全巡場、門禁與安檢工作</textarea></div>
-          </div>
         </div>
 
         <div class="text-center space-x-4 mt-6">
@@ -144,12 +137,13 @@
         <p class="section-subtitle">以下為今日社區停車紀錄清單。</p>
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-gray-200">
-            <thead><tr>
+            <thead id="parking-table-head"><tr>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車牌號碼</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">戶別</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">車位編號</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">入場時間</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">出場時間</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放時長(分鐘)</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">停放時長(分)</th>
             </tr></thead>
             <tbody id="parking-table-body"></tbody>
           </table>
@@ -210,7 +204,6 @@
   </div>
 
   <script type="module">
-    // --- Firebase ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
     import { 
@@ -218,7 +211,6 @@
       GoogleAuthProvider, signInWithPopup, signOut
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-    // --- Config ---
     const firebaseConfig = {
       apiKey: "AIzaSyDeRHsloR1iY0_bzpYbPzdCiBljGfck98k",
       authDomain: "jy-2025.firebaseapp.com",
@@ -228,24 +220,24 @@
       appId: "1:640527461851:web:eed9f82d698275371fcbfe",
     };
 
-    // 管理員（UID 白名單）
-    const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1"];
+    // 規則同步：兩個管理員 UID
+    const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1", "8dYFqXhM4gVQr9MTEI5z3P4Xn9p2"];
 
-    // --- 固定 Google Sheet ID（不再顯示/輸入） ---
+    // 完全以每日 CSV 欄位為準（不做欄位別名、戶別正規化、外部覆蓋）
+    const STRICT_CSV_MODE = true;
+
     const DEFAULT_SHEET_ID = "1DwcrgFncaocK3fil-lT-j5InTV7NwlBjEZjDF_OuhFU";
-
-    // --- Google APIs (Sheets) ---
     const GOOGLE_API_KEY = "AIzaSyAF90JqId5m1BRfdtc7TlTKWnYI_o5dQAs";
     const GOOGLE_CLIENT_ID = "948134512517-9thbq35n96ljei8hqks1ngn1mjqquopm.apps.googleusercontent.com";
     const DISCOVERY_DOC = "https://sheets.googleapis.com/$discovery/rest?version=v4";
     const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 
-    // --- App ---
     const App = {
       db:null, auth:null, user:null,
+      currentData:null, // 畫面目前顯示資料（匯出 fallback）
       gapiReady:false, gisReady:false, tokenClient:null,
       renovationChart:null, taskCount:0,
-      parkingData: [], // NEW: State for imported parking data
+      parkingData: [],
       elements:{},
 
       init(){
@@ -273,7 +265,6 @@
           prevDayBtn:document.getElementById('prev-day-btn'),
           nextDayBtn:document.getElementById('next-day-btn'),
           exportToSheetsBtn:document.getElementById('export-to-sheets-btn'),
-          // NEW: CSV Import Elements
           importCsvBtn: document.getElementById('import-csv-btn'),
           csvFileInput: document.getElementById('csv-file-input'),
           parkingRecordsDisplayInput: document.getElementById('parking-records-display-input'),
@@ -300,7 +291,6 @@
         document.getElementById('generate-csv-btn').addEventListener('click', ()=> this.generateCsv());
         document.getElementById('addTaskBtn').addEventListener('click', ()=> this.addTask());
         
-        // NEW: CSV Import Event Listeners
         this.elements.importCsvBtn.addEventListener('click', () => this.elements.csvFileInput.click());
         this.elements.csvFileInput.addEventListener('change', (e) => this.handleCsvImport(e));
 
@@ -330,6 +320,7 @@
         onAuthStateChanged(this.auth, (user)=>{
           this.user = user || null;
           this.updateAuthUI();
+
           if (!user) {
             signInAnonymously(this.auth).catch(err=>{
               console.error('匿名登入失敗:', err);
@@ -365,6 +356,14 @@
 
       waitGoogleApis(){
         const waitFor = (cond, cb)=>{ const t=setInterval(()=>{ if(cond()){clearInterval(t); cb();}},50); };
+        let timeoutShown = false;
+        const timeoutId = setTimeout(()=>{
+          if(!this.gapiReady || !this.gisReady){
+            timeoutShown = true;
+            this.showToast('Google API 載入較慢，請稍候或重整頁面', 'error');
+          }
+        }, 10000);
+
         waitFor(()=> window.gapi && window.gapi.load, ()=>{
           gapi.load('client', async ()=>{
             try{
@@ -392,12 +391,41 @@
             this.maybeApisReady();
           }catch(e){ console.error('GIS 初始化失敗', e); this.showToast('GIS 初始化失敗','error'); }
         });
+
+        const clearTimeoutIfReady = () => {
+          if(this.gapiReady && this.gisReady) clearTimeout(timeoutId);
+        };
+        const observer = setInterval(()=>{
+          clearTimeoutIfReady();
+          if(this.gapiReady && this.gisReady) clearInterval(observer);
+        }, 200);
       },
+
       maybeApisReady(){
         if (this.gapiReady && this.gisReady) {
           this.showToast('Google API 準備就緒！');
           this.updateAuthUI();
         }
+      },
+
+      // ===== CSV 解析（嚴格按欄位） =====
+      parseCSV(text){
+        const rows=[]; let cur='', inQuotes=false, row=[];
+        const pushCell=()=>{ row.push(cur); cur=''; };
+        const pushRow=()=>{ rows.push(row); row=[]; };
+        for(let i=0;i<text.length;i++){
+          const ch=text[i], next=text[i+1];
+          if(ch==='\"'){
+            if(inQuotes && next==='\"'){ cur+='\"'; i++; }
+            else inQuotes=!inQuotes;
+          }else if(ch===',' && !inQuotes){ pushCell(); }
+          else if((ch==='\n' || ch==='\r') && !inQuotes){
+            if(ch==='\r' && next==='\n') i++;
+            pushCell(); pushRow();
+          }else cur+=ch;
+        }
+        if(cur.length>0 || row.length>0){ pushCell(); pushRow(); }
+        return rows;
       },
 
       async saveLogToFirestore(){
@@ -426,10 +454,12 @@
           const isAdmin = this.user && !this.user.isAnonymous && ADMIN_UIDS.includes(this.user.uid);
           if (snap.exists()) {
             const data = snap.data();
+            this.parkingData = Array.isArray(data.parking) ? data.parking : [];
             this.updateDashboard(data);
             if (isAdmin) this.updateInputForm(data);
           } else {
             const defaultData = this.getFormData();
+            this.parkingData = Array.isArray(defaultData.parking) ? defaultData.parking : [];
             this.updateDashboard(defaultData);
             if (isAdmin) this.clearInputForm();
           }
@@ -448,36 +478,72 @@
 
         const reader = new FileReader();
         reader.onload = (e) => {
-            const text = e.target.result;
-            const rows = text.trim().split(/\r?\n/).slice(1);
-            
-            this.parkingData = rows.map(row => {
-                const columns = row.split(',');
-                if (columns.length < 5) return null; // Assuming carPlate, huBei, entry, exit, duration
-                return {
-                    carPlate: columns[0] ? columns[0].trim() : '',
-                    huBei: columns[1] ? columns[1].trim() : '',
-                    entryTime: columns[2] ? columns[2].trim() : '',
-                    exitTime: columns[3] ? columns[3].trim() : '',
-                    duration: columns[4] ? columns[4].trim() : ''
-                };
-            }).filter(Boolean);
+          let text = e.target.result || '';
+          if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // 去 BOM
 
-            this.showToast(`成功匯入 ${this.parkingData.length} 筆停車紀錄`, 'success');
-            
-            // Update the small display in the input form
-            this.elements.parkingRecordsDisplayInput.innerHTML = '';
-            const list = document.createElement('ul');
-            list.className = 'list-disc list-inside space-y-1 text-sm';
-            this.parkingData.forEach(r => {
-                const item = document.createElement('li');
-                item.textContent = `車牌: ${r.carPlate}, 戶別: ${r.huBei}`;
-                list.appendChild(item);
-            });
-            this.elements.parkingRecordsDisplayInput.appendChild(list);
+          const table = this.parseCSV(text).filter(r => r.length && r.join('').trim() !== '');
+          if (table.length === 0) { this.showToast('CSV 內容為空', 'error'); return; }
 
-            // Trigger full dashboard update
-            this.updateDashboardFromForm();
+          // 嚴格依表頭（精確名稱）
+          const header = table[0].map(h => (h||'').trim());
+          if (STRICT_CSV_MODE) {
+            const required = ['車牌號碼','戶別','車位編號','入場時間','出場時間','停放時長(分)'];
+            const miss = required.filter(h => !header.includes(h));
+            if (miss.length) { this.showToast(`CSV 欄位缺少：${miss.join('、')}`, 'error'); return; }
+          }
+          const iCar = header.indexOf('車牌號碼');
+          const iUnit = header.indexOf('戶別');
+          const iSpot = header.indexOf('車位編號');
+          const iIn   = header.indexOf('入場時間');
+          const iOut  = header.indexOf('出場時間');
+          const iDur  = header.indexOf('停放時長(分)');
+
+          const parseDT = (s) => {
+            if (!s) return NaN;
+            const v = String(s).trim();
+            // 停車管理中心固定格式：YYYY/MM/DD HH:mm
+            if (/^\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}$/.test(v)) {
+              const [d,t] = v.split(/\s+/);
+              const [Y,M,D] = d.split('/').map(Number);
+              const [h,m] = t.split(':').map(Number);
+              return new Date(Y, M-1, D, h, m).getTime();
+            }
+            return NaN;
+          };
+
+          const rows = table.slice(1).map(r => {
+            const obj = {
+              carPlate   : (r[iCar] ?? '').trim(),
+              huBei      : (r[iUnit] ?? '').trim(),
+              spotNumber : (r[iSpot] ?? '').trim(),
+              entryTime  : (r[iIn]   ?? '').trim(),
+              exitTime   : (r[iOut]  ?? '').trim(),
+              duration   : (r[iDur]  ?? '').trim(), // 單位：分
+            };
+            if (!obj.duration) {
+              const a = parseDT(obj.entryTime), b = parseDT(obj.exitTime);
+              if (!Number.isNaN(a) && !Number.isNaN(b)) {
+                obj.duration = String(Math.max(0, Math.round((b - a) / 60000)));
+              }
+            }
+            return obj;
+          }).filter(o => o.carPlate || o.huBei || o.entryTime || o.exitTime);
+
+          this.parkingData = rows;
+
+          // 左側摘要
+          this.showToast(`成功匯入 ${this.parkingData.length} 筆停車紀錄`, 'success');
+          this.elements.parkingRecordsDisplayInput.innerHTML = '';
+          const list = document.createElement('ul');
+          list.className = 'list-disc list-inside space-y-1 text-sm';
+          this.parkingData.forEach(r => {
+            const item = document.createElement('li');
+            item.textContent = `車牌: ${r.carPlate || '-'}, 戶別: ${r.huBei || '-'}, 車位: ${r.spotNumber || '無'}`;
+            list.appendChild(item);
+          });
+          this.elements.parkingRecordsDisplayInput.appendChild(list);
+
+          this.updateDashboardFromForm();
         };
         reader.onerror = () => this.showToast('讀取檔案失敗', 'error');
         reader.readAsText(file, 'UTF-8');
@@ -501,18 +567,26 @@
         const check2 = document.getElementById('check2').checked;
         const check3 = document.getElementById('check3').checked;
         const tasks = Array.from(document.querySelectorAll('#tasks-container input')).map(el=>el.value).filter(v=>v.trim()!=='');
-        
+
+        // 匯出時的停車資料：優先採用最新匯入的 parkingData，否則退回目前畫面顯示的 currentData.parking
+        const parkingFromState = Array.isArray(this.parkingData) && this.parkingData.length > 0
+          ? this.parkingData
+          : (this.currentData && Array.isArray(this.currentData.parking) ? this.currentData.parking : []);
+
         return {
           date,
           community:{ totalRenovation,newRenovation,renovationRetired,totalRenovationAccum,totalRenovationRetiredAccum,newMoveIn,totalHouseholds },
           checklist:{ check1,check2,check3 },
           tasks,
           staff:{ managerName,todayShift,tomorrowShift,shiftNotes },
-          parking: this.parkingData
+          parking: parkingFromState
         };
       },
 
       updateDashboard(data){
+        // 保存目前顯示資料，供匯出 fallback 使用
+        this.currentData = data || null;
+
         const dateObj = new Date(this.elements.dateSelector.value + 'T00:00:00');
         this.elements.displayDate.innerText = dateObj.toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
 
@@ -545,30 +619,25 @@
           </tr>
         `;
 
-        const tasksBody = document.getElementById('tasks-table-body');
-        tasksBody.innerHTML='';
-        (data.tasks||[]).forEach(task=>{ if(task) tasksBody.insertAdjacentHTML('beforeend', `<tr><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${task}</td></tr>`); });
-        
-        // MODIFIED: This is the core logic to display parking data
         const parkingBody = document.getElementById('parking-table-body');
         parkingBody.innerHTML = '';
-        const parkingDataToDisplay = data.parking || [];
-        if (parkingDataToDisplay.length === 0) {
-            parkingBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">本日無停車紀錄</td></tr>`;
+        const parking = data.parking || [];
+        if (parking.length === 0) {
+          parkingBody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">本日無停車紀錄</td></tr>`;
         } else {
-            parkingDataToDisplay.forEach(r => {
-                parkingBody.insertAdjacentHTML('beforeend', `
-                  <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate || '-'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei || '-'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime || '-'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime || '-'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration || '-'}</td>
-                  </tr>
-                `);
-            });
+          parking.forEach(r => {
+            parkingBody.insertAdjacentHTML('beforeend', `
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.carPlate   || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.huBei      || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.spotNumber || '無'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.entryTime  || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.exitTime   || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.duration   || '-'}</td>
+              </tr>
+            `);
+          });
         }
-
 
         if (this.renovationChart){
           const retired = parseInt(data.community.totalRenovationRetiredAccum) || 0;
@@ -601,14 +670,13 @@
         if ((data.tasks||[]).length===0) this.addTask();
         
         this.parkingData = data.parking || [];
-        // Display loaded parking data in the input section as well
         this.elements.parkingRecordsDisplayInput.innerHTML = '';
         if (this.parkingData.length > 0) {
             const list = document.createElement('ul');
             list.className = 'list-disc list-inside space-y-1 text-sm';
             this.parkingData.forEach(r => {
                 const item = document.createElement('li');
-                item.textContent = `車牌: ${r.carPlate}, 戶別: ${r.huBei}`;
+                item.textContent = `車牌: ${r.carPlate || '-'}, 戶別: ${r.huBei || '-'}, 車位: ${r.spotNumber || '無'}`;
                 list.appendChild(item);
             });
             this.elements.parkingRecordsDisplayInput.appendChild(list);
@@ -670,9 +738,9 @@
         csv += `公共區域門窗安全檢查,${c1}\n無郵件及包裹點交,${c2}\n施工圍籬與施工車輛停放位置確認,${c3}\n\n`;
         csv += "五、今日工作事項\n";
         data.tasks.forEach(task=>{ csv += `${task}\n`; });
-        csv += "\n六、停車紀錄\n車牌號碼,戶別,入場時間,出場時間,停放時長(分鐘)\n";
+        csv += "\n六、停車紀錄\n車牌號碼,戶別,車位編號,入場時間,出場時間,停放時長(分)\n";
         data.parking.forEach(r=>{
-          csv += `${r.carPlate||''},${r.huBei||''},${r.entryTime||''},${r.exitTime||''},${r.duration||''}\n`;
+          csv += `${r.carPlate||''},${r.huBei||''},${r.spotNumber||''},${r.entryTime||''},${r.exitTime||''},${r.duration||''}\n`;
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
@@ -733,8 +801,10 @@
             ...data.tasks.map(task => [task]),
             [],
             ["五、停車紀錄"],
-            ["車牌號碼", "戶別", "入場時間", "出場時間", "停放時長(分鐘)"],
-            ...data.parking.map(p => [ p.carPlate || '', p.huBei || '', p.entryTime || '', p.exitTime || '', p.duration || '' ])
+            ["車牌號碼", "戶別", "車位編號", "入場時間", "出場時間", "停放時長(分)"],
+            ...data.parking.map(p => [
+              p.carPlate || '', p.huBei || '', p.spotNumber || '', p.entryTime || '', p.exitTime || '', p.duration || ''
+            ])
         ];
 
         try {
