@@ -5,14 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>佳元松江社區每日營運儀表板</title>
 
-  <!-- UI / Chart -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 
-  <!-- Google APIs (Sheets) + Google Identity Services -->
   <script async src="https://apis.google.com/js/api.js"></script>
   <script async src="https://accounts.google.com/gsi/client"></script>
 
@@ -205,7 +203,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
     import { 
       getAuth, onAuthStateChanged, signInAnonymously,
       GoogleAuthProvider, signInWithPopup, signOut
@@ -220,10 +218,9 @@
       appId: "1:640527461851:web:eed9f82d698275371fcbfe",
     };
 
-    // 規則同步：兩個管理員 UID
-    const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1", "8dYFqXhM4gVQr9MTEI5z3P4Xn9p2"];
+    // **已移除硬編碼的 ADMIN_UIDS 陣列，改為從 Firestore 讀取。**
+    // const ADMIN_UIDS = ["KcaxVmcqI3RzxWdhCl2dhVGPxti1", "8dYFqXhM4gVQr9MTEI5z3P4Xn9p2"];
 
-    // 完全以每日 CSV 欄位為準（不做欄位別名、戶別正規化、外部覆蓋）
     const STRICT_CSV_MODE = true;
 
     const DEFAULT_SHEET_ID = "1DwcrgFncaocK3fil-lT-j5InTV7NwlBjEZjDF_OuhFU";
@@ -234,11 +231,12 @@
 
     const App = {
       db:null, auth:null, user:null,
-      currentData:null, // 畫面目前顯示資料（匯出 fallback）
+      currentData:null, 
       gapiReady:false, gisReady:false, tokenClient:null,
       renovationChart:null, taskCount:0,
       parkingData: [],
       elements:{},
+      adminUids: [], // 新增：用於儲存從 Firestore 讀取到的管理員 UID
 
       init(){
         const app = initializeApp(firebaseConfig);
@@ -317,26 +315,66 @@
       initAuthWatcher(){
         this.elements.userStatus.innerText = '正在載入 Google API...';
 
-        onAuthStateChanged(this.auth, (user)=>{
+        onAuthStateChanged(this.auth, async (user)=>{
           this.user = user || null;
-          this.updateAuthUI();
+          
+          if (user) {
+            console.log("登入成功，使用者 UID:", user.uid);
+            this.elements.userStatus.innerText = '正在驗證權限...';
 
-          if (!user) {
-            signInAnonymously(this.auth).catch(err=>{
+            try {
+              const isAdmin = await this.checkAdminStatus(user.uid);
+              this.updateAuthUI(isAdmin);
+              // 登入且驗證為管理員後，才啟用日誌功能
+              if (isAdmin) {
+                this.elements.dateSelector.disabled = false;
+                this.elements.prevDayBtn.disabled = false;
+                this.elements.nextDayBtn.disabled = false;
+                this.fetchLogByDate(this.elements.dateSelector.value);
+              } else {
+                // 非管理員，顯示訪客介面
+                this.updateDashboard(null); // 清空儀表板
+              }
+
+            } catch (error) {
+              console.error("驗證權限失敗：", error);
+              this.showToast('驗證權限失敗，請檢查網路連線或安全規則。','error');
+              this.updateAuthUI(false);
+            }
+          } else {
+            // 登出或匿名狀態
+            console.log("已登出，使用者 UID: 無");
+            this.elements.dateSelector.disabled = true;
+            this.elements.prevDayBtn.disabled = true;
+            this.elements.nextDayBtn.disabled = true;
+
+            // 處理匿名登入
+            await signInAnonymously(this.auth).catch(err => {
               console.error('匿名登入失敗:', err);
               this.elements.userStatus.innerText = "錯誤：無法連接至資料庫";
             });
-          } else {
-            this.elements.dateSelector.disabled = false;
-            this.elements.prevDayBtn.disabled = false;
+
+            this.updateAuthUI(false);
             this.fetchLogByDate(this.elements.dateSelector.value);
           }
         });
       },
 
-      updateAuthUI(){
+      async checkAdminStatus(uid) {
+          const adminsRef = collection(this.db, 'admins');
+          try {
+              const adminDoc = await getDoc(doc(adminsRef, uid));
+              return adminDoc.exists();
+          } catch (error) {
+              if (error.code === 'permission-denied') {
+                  return false;
+              }
+              throw error;
+          }
+      },
+
+      updateAuthUI(isAdmin){
         const user = this.user;
-        const isAdmin = user && !user.isAnonymous && ADMIN_UIDS.includes(user.uid);
 
         if (user && !user.isAnonymous) {
           this.elements.authButton.innerText = '登出';
@@ -404,11 +442,12 @@
       maybeApisReady(){
         if (this.gapiReady && this.gisReady) {
           this.showToast('Google API 準備就緒！');
-          this.updateAuthUI();
+          // 啟用 Sheets 相關按鈕
+          this.elements.exportToSheetsBtn.disabled = false;
+          this.elements.exportToSheetsBtn.innerText = '匯出至 Google Sheets';
         }
       },
 
-      // ===== CSV 解析（嚴格按欄位） =====
       parseCSV(text){
         const rows=[]; let cur='', inQuotes=false, row=[];
         const pushCell=()=>{ row.push(cur); cur=''; };
@@ -429,8 +468,8 @@
       },
 
       async saveLogToFirestore(){
-        if (!this.user || this.user.isAnonymous || !ADMIN_UIDS.includes(this.user.uid))
-          return this.showToast('您沒有權限儲存！', 'error');
+        const isAdmin = this.user && !this.user.isAnonymous && this.adminUids.includes(this.user.uid);
+        if (!isAdmin) return this.showToast('您沒有權限儲存！', 'error');
 
         const data = this.getFormData();
         if (!data.date) return this.showToast('請選擇日期！', 'error');
@@ -451,7 +490,7 @@
         try{
           const docRef = doc(this.db, 'daily_logs', date);
           const snap = await getDoc(docRef);
-          const isAdmin = this.user && !this.user.isAnonymous && ADMIN_UIDS.includes(this.user.uid);
+          const isAdmin = this.user && !this.user.isAnonymous && this.adminUids.includes(this.user.uid);
           if (snap.exists()) {
             const data = snap.data();
             this.parkingData = Array.isArray(data.parking) ? data.parking : [];
@@ -484,7 +523,6 @@
           const table = this.parseCSV(text).filter(r => r.length && r.join('').trim() !== '');
           if (table.length === 0) { this.showToast('CSV 內容為空', 'error'); return; }
 
-          // 嚴格依表頭（精確名稱）
           const header = table[0].map(h => (h||'').trim());
           if (STRICT_CSV_MODE) {
             const required = ['車牌號碼','戶別','車位編號','入場時間','出場時間','停放時長(分)'];
@@ -501,7 +539,6 @@
           const parseDT = (s) => {
             if (!s) return NaN;
             const v = String(s).trim();
-            // 停車管理中心固定格式：YYYY/MM/DD HH:mm
             if (/^\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}$/.test(v)) {
               const [d,t] = v.split(/\s+/);
               const [Y,M,D] = d.split('/').map(Number);
@@ -518,7 +555,7 @@
               spotNumber : (r[iSpot] ?? '').trim(),
               entryTime  : (r[iIn]   ?? '').trim(),
               exitTime   : (r[iOut]  ?? '').trim(),
-              duration   : (r[iDur]  ?? '').trim(), // 單位：分
+              duration   : (r[iDur]  ?? '').trim(),
             };
             if (!obj.duration) {
               const a = parseDT(obj.entryTime), b = parseDT(obj.exitTime);
@@ -531,7 +568,6 @@
 
           this.parkingData = rows;
 
-          // 左側摘要
           this.showToast(`成功匯入 ${this.parkingData.length} 筆停車紀錄`, 'success');
           this.elements.parkingRecordsDisplayInput.innerHTML = '';
           const list = document.createElement('ul');
@@ -568,7 +604,6 @@
         const check3 = document.getElementById('check3').checked;
         const tasks = Array.from(document.querySelectorAll('#tasks-container input')).map(el=>el.value).filter(v=>v.trim()!=='');
 
-        // 匯出時的停車資料：優先採用最新匯入的 parkingData，否則退回目前畫面顯示的 currentData.parking
         const parkingFromState = Array.isArray(this.parkingData) && this.parkingData.length > 0
           ? this.parkingData
           : (this.currentData && Array.isArray(this.currentData.parking) ? this.currentData.parking : []);
@@ -584,7 +619,6 @@
       },
 
       updateDashboard(data){
-        // 保存目前顯示資料，供匯出 fallback 使用
         this.currentData = data || null;
 
         const dateObj = new Date(this.elements.dateSelector.value + 'T00:00:00');
